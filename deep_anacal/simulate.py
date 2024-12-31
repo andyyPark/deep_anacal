@@ -26,6 +26,7 @@ def build_fixed_psf(
 
 def simulate_exponential(
         *,
+        seed,
         ngrid,
         ny,
         nx,
@@ -36,7 +37,8 @@ def simulate_exponential(
         fwhm=0.6,
         psf_name="gaussian",
         fix_psf=True,
-        fix_noise=True,
+        return_noise=True,
+        noise_std=0,
 ):
     logger = setup_custom_logger()
     if nx % ngrid != 0:
@@ -59,7 +61,19 @@ def simulate_exponential(
     gal = gal.shift(0.5 * scale, 0.5 * scale)
     gal_image = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
     gal_image = np.tile(gal_image, (ngaly, ngalx))
-    return gal_image, psf_image
+    if return_noise:
+        image_noise, renoise_image = simulate_noise(
+            seed=seed,
+            image_shape=gal_image.shape,
+            noise_std=noise_std,
+        )
+        return gal_image, psf_image, image_noise, renoise_image
+    else:
+        gal_image, psf_image
 
-    
-    
+
+def simulate_noise(*, seed, image_shape, noise_std):
+    rng = np.random.RandomState(seed)
+    image_noise = rng.normal(size=image_shape, scale=noise_std)
+    renoise_noise = rng.normal(size=image_shape, scale=noise_std)
+    return image_noise, renoise_noise
