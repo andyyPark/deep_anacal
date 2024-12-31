@@ -55,12 +55,14 @@ def simulate_exponential(
     # TODO - Build variable psf
     if fix_psf:
         psf = build_fixed_psf(fwhm=fwhm, psf_name=psf_name, logger=logger)
-    psf_image = psf.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
     gal = galsim.Convolve([gal, psf], gsparams=gsparams)
     # TODO - Allow shift in the center of the pixel
     gal = gal.shift(0.5 * scale, 0.5 * scale)
     gal_image = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
     gal_image = np.tile(gal_image, (ngaly, ngalx))
+    psf_image = psf.shift(
+        0.5 * scale, 0.5 * scale
+        ).drawImage(nx=ngrid, ny=ngrid, scale=scale).array
     if return_noise:
         image_noise, renoise_image = simulate_noise(
             seed=seed,
