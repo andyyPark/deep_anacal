@@ -1,6 +1,26 @@
 import logging
 import numpy as np
 
+CAT_FIELDS = [
+    "fpfs_e1",
+    "fpfs_de1_dg1",
+    "fpfs_e2",
+    "fpfs_de2_dg2",
+    "fpfs_q1",
+    "fpfs_dq1_dg1",
+    "fpfs_q2",
+    "fpfs_dq2_dg2",
+    "fpfs_w",
+    "fpfs_dw_dg1",
+    "fpfs_dw_dg2",
+    "fpfs_m00",
+    "fpfs_dm00_dg1",
+    "fpfs_dm00_dg2",
+    "fpfs_m20",
+    "fpfs_dm20_dg1",
+    "fpfs_dm20_dg2",
+]
+
 
 def setup_custom_logger(verbose=False):
     logger = logging.getLogger(__name__)
@@ -22,6 +42,7 @@ def setup_custom_logger(verbose=False):
         logger.addHandler(handler)
     return logger
 
+
 def get_e_w(*, acal_res, wname, wgname, ename, egname):
     shear_res = dict()
     for i, sign in enumerate(["plus", "minus"]):
@@ -30,29 +51,30 @@ def get_e_w(*, acal_res, wname, wgname, ename, egname):
             shear_res[sign][quant] = acal_res[i][quant]
     return shear_res
 
+
 # TODO - Compute bias from multiple realizations
 def compute_m_and_c(
-        *,
-        acal_res,
-        component=1,
-        true_shear=0.02,
-        force_detection=False,
+    *,
+    acal_res,
+    component=1,
+    true_shear=0.02,
+    force_detection=False,
 ):
     wname = "fpfs_w"
     wgname = f"fpfs_dw_dg{component}"
     ename = f"fpfs_e{component}"
     egname = f"fpfs_de{component}_dg{component}"
-    shear_res = get_e_w(acal_res=acal_res,
-                        wname=wname, wgname=wgname,
-                        ename=ename, egname=egname)
+    shear_res = get_e_w(
+        acal_res=acal_res, wname=wname, wgname=wgname, ename=ename, egname=egname
+    )
     if force_detection:
         for sign in ["plus", "minus"]:
             shear_res[sign][wname] = 1.0
             shear_res[sign][wgname] = 0.0
-    
+
     def _get_stuff(shear_res, sign, key):
         return shear_res[sign][key]
-    
+
     w_plus = _get_stuff(shear_res, "plus", wname)
     e_plus = _get_stuff(shear_res, "plus", ename)
     wg_plus = _get_stuff(shear_res, "plus", wgname)
@@ -64,7 +86,7 @@ def compute_m_and_c(
     wg_minus = _get_stuff(shear_res, "minus", wgname)
     eg_minus = _get_stuff(shear_res, "minus", egname)
     R_minus = wg_minus * e_minus + w_minus * eg_minus
-    
+
     num1 = np.sum(w_plus * e_plus) - np.sum(w_minus * e_minus)
     num2 = np.sum(w_plus * e_plus) + np.sum(w_minus * e_minus)
     denom = np.sum(R_plus) + np.sum(R_minus)
