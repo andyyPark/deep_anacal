@@ -53,7 +53,9 @@ def get_e_w(*, acat, component=1, force_detection=False):
     elif isinstance(acat, np.ndarray):
         return acat[ename], acat[wname] if not force_detection else 1.0
     else:
-        raise ValueError("acal_res in 'get_e_w' must be of type 'list' or 'np.ndarray'")
+        raise ValueError(
+            f"acal_res in 'get_e_w' must be of type 'list' or 'np.ndarray', not {type(acat)}"
+            )
 
 
 # TODO - Add selection weights
@@ -98,9 +100,9 @@ def compute_m_and_c(
         w_plus, w_minus = w_minus, w_plus
         R_plus, R_minus = R_minus, R_plus
 
-    num1 = np.sum(w_plus * e_plus) - np.sum(w_minus * e_minus)
-    num2 = np.sum(w_plus * e_plus) + np.sum(w_minus * e_minus)
-    denom = np.sum(R_plus) + np.sum(R_minus)
+    num1 = np.mean(w_plus * e_plus) - np.mean(w_minus * e_minus)
+    num2 = np.mean(w_plus * e_plus) + np.mean(w_minus * e_minus)
+    denom = np.mean(R_plus) + np.mean(R_minus)
     mbias = num1 / denom / true_shear - 1
     cbias = num2 / denom
 
