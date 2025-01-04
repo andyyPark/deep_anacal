@@ -70,7 +70,7 @@ def simulate_exponential(
         ).drawImage(nx=ngrid, ny=ngrid, scale=scale).array
     if return_noise:
         image_noise, renoise_image = simulate_noise(
-            seed=seed,
+            rng=rng,
             image_shape=gal_image.shape,
             noise_std=noise_std,
         )
