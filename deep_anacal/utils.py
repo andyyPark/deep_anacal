@@ -80,8 +80,8 @@ def compute_m_and_c(
     force_detection=False,
 ):
     if isinstance(acal_res, dict):
-        cat1 = acal_res["deep"]
-        cat2 = acal_res["wide"]
+        cat1 = acal_res["wide"]
+        cat2 = acal_res["deep"]
     elif isinstance(acal_res, list):
         cat1 = acal_res
         cat2 = acal_res
