@@ -31,6 +31,7 @@ def simulate_exponential(
         ny,
         nx,
         scale,
+        do_shift=False,
         g1=0.0,
         g2=0.0,
         hlr=0.5,
@@ -52,11 +53,15 @@ def simulate_exponential(
         )
     gsparams = galsim.GSParams(maximum_fft_size=10240)
     gal = galsim.Exponential(half_light_radius=hlr).shear(g1=g1, g2=g2)
+    rng = np.random.RandomState(seed=seed)
     # TODO - Build variable psf
     if fix_psf:
         psf = build_fixed_psf(fwhm=fwhm, psf_name=psf_name, logger=logger)
     gal = galsim.Convolve([gal, psf], gsparams=gsparams)
-    # TODO - Allow shift in the center of the pixel
+    if do_shift:
+        shift_x = rng.uniform(low=-0.5, high=0.5) * scale
+        shift_y = rng.uniform(low=-0.5, high=0.5) * scale
+        gal.shift(shift_x, shift_y)
     gal = gal.shift(0.5 * scale, 0.5 * scale)
     gal_image = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
     gal_image = np.tile(gal_image, (ngaly, ngalx))
@@ -74,8 +79,7 @@ def simulate_exponential(
         gal_image, psf_image
 
 
-def simulate_noise(*, seed, image_shape, noise_std):
-    rng = np.random.RandomState(seed)
+def simulate_noise(*, rng, image_shape, noise_std):
     image_noise = rng.normal(size=image_shape, scale=noise_std)
     renoise_noise = rng.normal(size=image_shape, scale=noise_std)
     return image_noise, renoise_noise
