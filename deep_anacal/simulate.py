@@ -40,7 +40,8 @@ def simulate_exponential(
         psf_name="gaussian",
         fix_psf=True,
         return_noise=True,
-        noise_std=0,
+        s2n=10,
+        noise_fac=1.0,
 ):
     logger = setup_custom_logger()
     if nx % ngrid != 0:
@@ -65,6 +66,8 @@ def simulate_exponential(
         gal.shift(shift_x, shift_y)
     gal = gal.shift(0.5 * scale, 0.5 * scale)
     gal_image = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
+    noise_std = np.sqrt(np.sum(gal_image**2)) / s2n
+    noise_std *= noise_fac
     gal_image = np.tile(gal_image, (ngaly, ngalx))
     psf_image = psf.shift(
         0.5 * scale, 0.5 * scale
@@ -75,9 +78,9 @@ def simulate_exponential(
             image_shape=gal_image.shape,
             noise_std=noise_std,
         )
-        return gal_image, psf_image, image_noise, renoise_image
+        return gal_image, psf_image, noise_std, image_noise, renoise_image
     else:
-        gal_image, psf_image
+        gal_image, psf_image, noise_std
 
 
 def simulate_noise(*, rng, image_shape, noise_std):
