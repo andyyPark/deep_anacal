@@ -32,6 +32,7 @@ def simulate_exponential(
         nx,
         scale,
         do_shift=False,
+        flux=1,
         g1=0.0,
         g2=0.0,
         hlr=0.5,
@@ -52,7 +53,7 @@ def simulate_exponential(
         f"Simulating exponential galaxies with g1={g1:.2f} and g2={g2:.2f}"
         )
     gsparams = galsim.GSParams(maximum_fft_size=10240)
-    gal = galsim.Exponential(half_light_radius=hlr).shear(g1=g1, g2=g2)
+    gal = galsim.Exponential(half_light_radius=hlr).withFlux(flux).shear(g1=g1, g2=g2)
     rng = np.random.RandomState(seed=seed)
     # TODO - Build variable psf
     if fix_psf:
