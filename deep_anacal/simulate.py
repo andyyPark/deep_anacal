@@ -39,7 +39,6 @@ def simulate_exponential(
         fwhm=0.6,
         psf_name="gaussian",
         fix_psf=True,
-        return_noise=True,
         s2n=10,
         noise_fac=1.0,
 ):
@@ -72,18 +71,8 @@ def simulate_exponential(
     psf_image = psf.shift(
         0.5 * scale, 0.5 * scale
         ).drawImage(nx=ngrid, ny=ngrid, scale=scale).array
-    if return_noise:
-        image_noise, renoise_image = simulate_noise(
-            rng=rng,
-            image_shape=gal_image.shape,
-            noise_std=noise_std,
-        )
-        return gal_image, psf_image, noise_std, image_noise, renoise_image
-    else:
-        gal_image, psf_image, noise_std
-
-
-def simulate_noise(*, rng, image_shape, noise_std):
-    image_noise = rng.normal(size=image_shape, scale=noise_std)
-    renoise_noise = rng.normal(size=image_shape, scale=noise_std)
-    return image_noise, renoise_noise
+    seed_renoise = seed + 212 # Make sure the second noise has different seed
+    rng_renoise = np.random.RandomState(seed_renoise)
+    image_noise = rng.normal(scale=noise_std, size=gal_image.shape)
+    noise_array = rng_renoise.normal(scale=noise_std, size=gal_image.shape)
+    return gal_image, psf_image, noise_std, image_noise, noise_array
