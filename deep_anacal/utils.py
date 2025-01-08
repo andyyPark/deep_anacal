@@ -68,7 +68,6 @@ def get_e_w(*, acat, sel=None, sel_min=None, component=1, force_detection=False)
     return cat[ename], cat[wname] if not force_detection else 1.0
 
 
-# TODO - Add selection weights
 def get_R(
     *,
     acat,
@@ -76,7 +75,6 @@ def get_R(
     sel_min=None,
     component=1,
     force_detection=False,
-    correct_selection_bias=False,
 ):
     egname = f"fpfs_de{component}_dg{component}"
     wgname = f"fpfs_dw_dg{component}"
@@ -88,30 +86,36 @@ def get_R(
     )
     e, w = e_w
     R = cat[wgname] * e + cat[egname] * w
-    if correct_selection_bias:
-        # TODO - include selection from M20 and fix hard-coding dg
-        selg = f"fpfs_dm00_dg{component}"
-        dg = 0.02
-        tmp = acat[(acat[sel] + dg * acat[selg]) > sel_min]
-        e_plus, w_plus = get_e_w(
-            acat=tmp,
-            component=component,
-            force_detection=force_detection
-        )
-        ellip_plus = np.sum(e_plus * w_plus)
-        del tmp
-        tmp = acat[(acat[sel] - dg * acat[selg]) > sel_min]
-        e_minus, w_minus = get_e_w(
-            acat=tmp,
-            component=component,
-            force_detection=force_detection
-        )
-        ellip_minus = np.sum(e_minus * w_minus)
-        del tmp
-        R_sel = (ellip_plus - ellip_minus) / 2.0 / dg
-    else:
-        R_sel = 0.0
-    return R, R_sel
+    return R
+
+def get_R_sel(
+    *,
+    acat,
+    sel=None,
+    sel_min=None,
+    component=1,
+    force_detection=False,
+):
+    selg = f"fpfs_dm00_dg{component}"
+    dg = 0.02
+    tmp = acat[(acat[sel] + dg * acat[selg]) > sel_min]
+    e_plus, w_plus = get_e_w(
+        acat=tmp,
+        component=component,
+        force_detection=force_detection
+    )
+    ellip_plus = np.sum(e_plus * w_plus)
+    del tmp
+    tmp = acat[(acat[sel] - dg * acat[selg]) > sel_min]
+    e_minus, w_minus = get_e_w(
+        acat=tmp,
+        component=component,
+        force_detection=force_detection
+    )
+    ellip_minus = np.sum(e_minus * w_minus)
+    del tmp
+    R_sel = (ellip_plus - ellip_minus) / 2.0 / dg
+    return R_sel
 
 
 # TODO - Compute bias from multiple realizations
@@ -120,6 +124,7 @@ def compute_m_and_c(
     wacal_res,
     dacal_res,
     sel=None,
+    sel_min=None,
     component=1,
     true_shear=0.02,
     force_detection=False,
@@ -129,25 +134,45 @@ def compute_m_and_c(
         raise ValueError("len of 'wacal_res' and 'dacal_res' must be 2")
 
     e_plus, w_plus = get_e_w(
-        acat=wacal_res[0], sel=sel, component=component, force_detection=force_detection
+        acat=wacal_res[0], sel=sel, sel_min=sel_min,
+        component=component, force_detection=force_detection
     )
     e_minus, w_minus = get_e_w(
-        acat=wacal_res[1], sel=sel, component=component, force_detection=force_detection
+        acat=wacal_res[1], sel=sel, sel_min=sel_min,
+        component=component, force_detection=force_detection
     )
-    R_plus, R_sel_plus = get_R(
+    R_plus = get_R(
         acat=dacal_res[0],
         sel=sel,
+        sel_min=sel_min,
         component=component,
-        force_detection=force_detection,
-        correct_selection_bias=correct_selection_bias,
+        force_detection=force_detection
     )
-    R_minus, R_sel_minus = get_R(
-        acat=dacal_res[0],
+    R_minus = get_R(
+        acat=dacal_res[1],
         sel=sel,
+        sel_min=sel_min,
         component=component,
-        force_detection=force_detection,
-        correct_selection_bias=correct_selection_bias,
+        force_detection=force_detection
     )
+    if correct_selection_bias:
+        R_sel_plus = get_R_sel(
+            acat=dacal_res[0],
+            sel=sel,
+            sel_min=sel_min,
+            component=component,
+            force_detection=force_detection
+        )
+        R_sel_minus = get_R_sel(
+            acat=dacal_res[1],
+            sel=sel,
+            sel_min=sel_min,
+            component=component,
+            force_detection=force_detection
+        )
+    else:
+        R_sel_plus = 0.0
+        R_sel_minus = 0.0
 
     if e_plus.sum() < e_minus.sum():
         e_plus, e_minus = e_minus, e_plus
