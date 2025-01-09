@@ -3,35 +3,22 @@ import os
 import gc
 import sys
 from argparse import ArgumentParser
-from astropy.io import fits
+import fitsio
 import numpy as np
-import schwimmbad
+import joblib
 from deep_anacal import simulate
-
-
-def get_processor_count(pool, args):
-    if isinstance(pool, schwimmbad.MPIPool):
-        # MPIPool
-        from mpi4py import MPI
-
-        return MPI.COMM_WORLD.Get_size() - 1
-    elif isinstance(pool, schwimmbad.MultiPool):
-        # MultiPool
-        return args.n_cores
-    else:
-        # SerialPool
-        return 1
 
 
 class Worker(object):
     def __init__(self, case_name, exp_type, scale=0.2, stamp=100):
         self.case_name = case_name
-        self.case_number = int(self.case_name[:-1])
+        self.case_number = int(self.case_name[-1])
         if self.case_number < 5:
             self.psf_name = "gaussian"
         else:
             self.psf_name = "moffat"
         self.img_dir = os.path.join(os.getcwd(), case_name)
+        print(self.img_dir)
         assert exp_type in ["wide", "deep"]
         self.exp_type = exp_type
         if self.exp_type == "deep":
@@ -41,7 +28,7 @@ class Worker(object):
             self.noise_fac = 1.0
             self.fwhm = 0.9
         self.scale = scale
-        self.psf_array = simulate.build_fixed_psf(
+        self.psf = simulate.build_fixed_psf(
             fwhm=self.fwhm, psf_name=self.psf_name
         )
         self.stamp = stamp
@@ -50,46 +37,54 @@ class Worker(object):
         self.ny = self.stamp * self.ngrid
         if not os.path.isdir(self.img_dir):
             os.makedirs(self.img_dir, exist_ok=True)
+        self.psf_array = self.psf.shift(
+                0.5 * scale, 0.5 * scale
+                ).drawImage(nx=self.ngrid, ny=self.ngrid, scale=scale).array
         psf_fname = os.path.join(self.img_dir, f"{self.exp_type}_psf.fits")
-        fits.writeto(psf_fname, self.psf_array, overwrite=True)
+        fitsio.write(psf_fname, self.psf_array, clobber=True)
 
     def run(self, ifield):
         print(f"Simulating for field: {ifield}")
         # TODO - Right now only supports exponential galaxy
-        gal_array, psf_array, noise_std, img_noise, noise_array = (
-            simulate.simulate_exponential(
-                seed=20 * ifield + self.case_number,
-                g1=0.02,
-                ngrid=self.ngrid,
-                nx=self.nx,
-                ny=self.ny,
-                scale=self.scale,
-                fwhm=self.fwhm,
-                psf_name=self.psf_name,
-                s2n=19,
-                noise_fac=self.noise_fac,
+        for i, g1 in enumerate([0.02, -0.02]):
+            gal_array, psf_array, noise_std, img_noise, noise_array = (
+                simulate.simulate_exponential(
+                    seed=20 * ifield + self.case_number * (i + 1),
+                    g1=g1,
+                    ngrid=self.ngrid,
+                    nx=self.nx,
+                    ny=self.ny,
+                    scale=self.scale,
+                    fwhm=self.fwhm,
+                    psf_name=self.psf_name,
+                    s2n=19,
+                    noise_fac=self.noise_fac,
+                )
             )
-        )
-        gal_fname = os.path.join(self.img_dir, f"{self.exp_type}_gal_{ifield}.fits")
-        img_noise_fname = os.path.join(
-            self.img_dir, f"{self.exp_type}_imgnoise_{ifield}.fits"
-        )
-        renoise_fname = os.path.join(
-            self.img_dir, f"{self.exp_type}_renoise_{ifield}.fits"
-        )
-        fits.writeto(gal_fname, gal_array, overwrite=True)
-        fits.writeto(img_noise_fname, img_noise, overwrite=True)
-        fits.writeto(renoise_fname, noise_array, overwrite=True)
-        del gal_array, psf_array, noise_std, img_onise, noise_array
+            gal_fname = os.path.join(self.img_dir, f"{self.exp_type}_gal_{ifield}_{i}.fits")
+            img_noise_fname = os.path.join(
+                self.img_dir, f"{self.exp_type}_imgnoise_{ifield}_{i}.fits"
+            )
+            renoise_fname = os.path.join(
+                self.img_dir, f"{self.exp_type}_renoise_{ifield}_{i}.fits"
+            )
+            fitsio.write(gal_fname, gal_array, clobber=True)
+            fitsio.write(img_noise_fname, img_noise, clobber=True)
+            fitsio.write(renoise_fname, noise_array, clobber=True)
+            del gal_array, psf_array, noise_std, img_noise, noise_array
         gc.collect()
+        print(f"Done simulating for {ifield}")
+        return
 
 
-def run(pool, case_name, exp_type, min_id, max_id):
+def run(case_name, exp_type, min_id, max_id):
     input_list = list(range(min_id, max_id))
     worker = Worker(case_name, exp_type)
-    for _ in pool.map(worker.run, input_list):
-        pass
-    pool.close()
+    jobs = [
+        joblib.delayed(worker.run)(i)
+        for i in input_list
+    ]
+    joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
     sys.exit(0)
     return
 
@@ -138,10 +133,7 @@ def main():
     exp_type = cmd_args.exp_type
     min_id = cmd_args.min_id
     max_id = cmd_args.max_id
-    pool = schwimmbad.choose_pool(mpi=cmd_args.mpi, processes=cmd_args.n_cores)
-    ncores = get_processor_count(pool, cmd_args)
     run(
-        pool=pool,
         case_name=case_name,
         exp_type=exp_type,
         min_id=min_id,
