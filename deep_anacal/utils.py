@@ -119,14 +119,13 @@ def get_R_sel(
 
 
 # TODO - Compute bias from multiple realizations
-def compute_m_and_c(
+def get_e_R(
     *,
     wacal_res,
     dacal_res,
     sel=None,
     sel_min=None,
     component=1,
-    true_shear=0.02,
     force_detection=False,
     correct_selection_bias=False,
 ):
@@ -180,10 +179,23 @@ def compute_m_and_c(
         R_plus, R_minus = R_minus, R_plus
         R_sel_plus, R_sel_minus = R_sel_minus, R_sel_plus
 
-    num1 = np.mean(w_plus * e_plus) - np.mean(w_minus * e_minus)
-    num2 = np.mean(w_plus * e_plus) + np.mean(w_minus * e_minus)
-    denom = np.mean(R_plus) + np.mean(R_sel_plus) + np.mean(R_minus) + np.mean(R_sel_minus)
-    mbias = num1 / denom / true_shear - 1
-    cbias = num2 / denom
+    ellip_plus = w_plus * e_plus
+    ellip_minus = w_minus * e_minus
+    return ellip_plus, R_plus, ellip_minus, R_minus
 
-    return mbias, cbias
+def compute_m_and_c(*, e_plus, R_plus, e_minus, R_minus, true_shear=0.02):
+    e_plus = np.atleast_2d(e_plus)
+    R_plus = np.atleast_2d(R_plus)
+    e_minus = np.atleast_2d(e_minus)
+    R_minus = np.atleast_2d(R_minus)
+    R = R_plus + R_minus
+    print(e_plus, e_plus.shape)
+    res = np.concatenate([e_plus - e_minus, e_plus + e_minus, R]).T
+    nsim = res.shape[0]
+    res_avg = np.average(res, axis=0)
+    m = res_avg[0] / res_avg[2] / true_shear - 1
+    merr = np.std(res[:, 0]) / np.average(res[:, 2]) / true_shear / np.sqrt(nsim)
+    c = res_avg[1] / res_avg[2]
+    cerr = np.std(res[:, 1]) / np.average(res[:, 2]) / np.sqrt(nsim)
+    return m, merr, c, cerr
+
