@@ -189,7 +189,6 @@ def compute_m_and_c(*, e_plus, R_plus, e_minus, R_minus, true_shear=0.02):
     e_minus = np.atleast_2d(e_minus)
     R_minus = np.atleast_2d(R_minus)
     R = R_plus + R_minus
-    print(e_plus, e_plus.shape)
     res = np.concatenate([e_plus - e_minus, e_plus + e_minus, R]).T
     nsim = res.shape[0]
     res_avg = np.average(res, axis=0)
