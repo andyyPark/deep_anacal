@@ -57,15 +57,6 @@ def simulate_exponential(
         ).drawImage(nx=ngrid, ny=ngrid, scale=scale).array
     return gal_array, psf_array
 
-def simulate_pure_noise(*, seed, image, s2n, deep_noise_frac=1.0, renoise=True):
-    # Make sure pure noise for renoising has different seed
-    if renoise:
-        seed = seed + 1
-    rng = np.random.RandomState(seed)
-    noise_std = np.sqrt(np.sum(image**2)) / s2n
-    img_noise = rng.normal(scale=noise_std * deep_noise_frac, size=(image.shape))
-    return img_noise, noise_std
-
 
 def sim_wide_deep(
         *,
@@ -112,21 +103,23 @@ def sim_wide_deep(
         fix_psf=fix_psf,
         fwhm=fwhm_d,
     )
-
-    image_noise_w, noise_std_w = simulate_pure_noise(
-        seed=seed, image=gal_array_w, s2n=s2n, deep_noise_frac=1.0
-    )
-    image_noise_d, noise_std_d = simulate_pure_noise(
-        seed=seed, image=gal_array_d, s2n=s2n, deep_noise_frac=deep_noise_frac
-    )
+    noise_std_w = np.sqrt(np.sum(gal_array_w)) / s2n
+    noise_std_d = noise_std_w * deep_noise_frac
+    image_noise_w = np.random.RandomState(seed).normal(scale=noise_std_w, size=(gal_array_w.shape))
+    image_noise_d = np.random.RandomState(seed+10).normal(scale=noise_std_d, size=(gal_array_d.shape))
+    noise_array_d = np.random.RandomState(seed+20).normal(scale=noise_std_d, size=(gal_array_d.shape))
+    noise_array_d = np.rot90(noise_array_d, k=1)
 
     return {
-        "wide": gal_array_w + image_noise_w,
-        "wide_psf": psf_array_w,
-        "wide_noise_std": noise_std_w,
-        "deep": gal_array_d + image_noise_d,
-        "deep_psf": psf_array_d,
-        "deep_noise_std": noise_std_d
+        "gal_w": gal_array_w,
+        "img_noise_w": image_noise_w,
+        "psf_w": psf_array_w,
+        "noise_std_w": noise_std_w,
+        "gal_d": gal_array_d,
+        "img_noise_d": image_noise_d,
+        "psf_d": psf_array_d,
+        "noise_std_d": noise_std_d,
+        "noise_array_d": noise_array_d
     }
 
 
