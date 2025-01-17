@@ -183,18 +183,13 @@ def get_e_R(
     ellip_minus = w_minus * e_minus
     return ellip_plus, R_plus, ellip_minus, R_minus
 
-def compute_m_and_c(*, e_plus, R_plus, e_minus, R_minus, true_shear=0.02):
-    e_plus = np.atleast_2d(e_plus)
-    R_plus = np.atleast_2d(R_plus)
-    e_minus = np.atleast_2d(e_minus)
-    R_minus = np.atleast_2d(R_minus)
-    R = R_plus + R_minus
-    res = np.concatenate([e_plus - e_minus, e_plus + e_minus, R]).T
+def estimate_m_and_c(*, res, true_shear=0.02):
     nsim = res.shape[0]
     res_avg = np.average(res, axis=0)
+    res_std = np.std(res, axis=0)
     m = res_avg[0] / res_avg[2] / true_shear - 1
-    merr = np.std(res[:, 0]) / np.average(res[:, 2]) / true_shear / np.sqrt(nsim)
+    merr = res_std[0] / res_avg[2] / true_shear / np.sqrt(nsim)
     c = res_avg[1] / res_avg[2]
-    cerr = np.std(res[:, 1]) / np.average(res[:, 2]) / np.sqrt(nsim)
+    cerr = res_std[1] / res_avg[2] / np.sqrt(nsim)
     return m, merr, c, cerr
 

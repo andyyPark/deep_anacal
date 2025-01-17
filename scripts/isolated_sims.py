@@ -1,146 +1,109 @@
 #!/usr/bin/env python
-import os
-import gc
-import sys
-from argparse import ArgumentParser
-import fitsio
 import numpy as np
 import joblib
-from deep_anacal import simulate
+import multiprocessing
 
+import anacal
+from deep_anacal import deep_anacal, simulate, utils
 
-class Worker(object):
-    def __init__(self, case_name, exp_type, scale=0.2, stamp=100):
-        self.case_name = case_name
-        self.case_number = int(self.case_name[-1])
-        if self.case_number < 5:
-            self.psf_name = "gaussian"
-        else:
-            self.psf_name = "moffat"
-        self.img_dir = os.path.join(os.getcwd(), case_name)
-        print(self.img_dir)
-        assert exp_type in ["wide", "deep"]
-        self.exp_type = exp_type
-        if self.exp_type == "deep":
-            self.noise_fac = 1 / np.sqrt(10)
-            self.fwhm = 0.7
-        else:
-            self.noise_fac = 1.0
-            self.fwhm = 0.9
-        self.scale = scale
-        self.psf = simulate.build_fixed_psf(
-            fwhm=self.fwhm, psf_name=self.psf_name
-        )
-        self.stamp = stamp
-        self.ngrid = 64
-        self.nx = self.stamp * self.ngrid
-        self.ny = self.stamp * self.ngrid
-        if not os.path.isdir(self.img_dir):
-            os.makedirs(self.img_dir, exist_ok=True)
-        self.psf_array = self.psf.shift(
-                0.5 * scale, 0.5 * scale
-                ).drawImage(nx=self.ngrid, ny=self.ngrid, scale=scale).array
-        psf_fname = os.path.join(self.img_dir, f"{self.exp_type}_psf.fits")
-        fitsio.write(psf_fname, self.psf_array, clobber=True)
-
-    def run(self, ifield):
-        print(f"Simulating for field: {ifield}")
-        # TODO - Right now only supports exponential galaxy
-        for i, g1 in enumerate([0.02, -0.02]):
-            gal_array, psf_array, noise_std, img_noise, noise_array = (
-                simulate.simulate_exponential(
-                    seed=20 * ifield + self.case_number * (i + 1),
-                    g1=g1,
-                    ngrid=self.ngrid,
-                    nx=self.nx,
-                    ny=self.ny,
-                    scale=self.scale,
-                    fwhm=self.fwhm,
-                    psf_name=self.psf_name,
-                    s2n=19,
-                    noise_fac=self.noise_fac,
-                )
-            )
-            gal_fname = os.path.join(self.img_dir, f"{self.exp_type}_gal_{ifield}_{i}.fits")
-            img_noise_fname = os.path.join(
-                self.img_dir, f"{self.exp_type}_imgnoise_{ifield}_{i}.fits"
-            )
-            renoise_fname = os.path.join(
-                self.img_dir, f"{self.exp_type}_renoise_{ifield}_{i}.fits"
-            )
-            fitsio.write(gal_fname, gal_array, clobber=True)
-            fitsio.write(img_noise_fname, img_noise, clobber=True)
-            fitsio.write(renoise_fname, noise_array, clobber=True)
-            del gal_array, psf_array, noise_std, img_noise, noise_array
-        gc.collect()
-        print(f"Done simulating for {ifield}")
-        return
-
-
-def run(case_name, exp_type, min_id, max_id):
-    input_list = list(range(min_id, max_id))
-    worker = Worker(case_name, exp_type)
-    jobs = [
-        joblib.delayed(worker.run)(i)
-        for i in input_list
+ngrid = 64
+indx = [ngrid//2]
+indy = [ngrid//2]
+ns = len(indx) * len(indy)
+inds = np.meshgrid(indy, indx, indexing="ij")
+yx = np.vstack([np.ravel(_) for _ in inds])
+dtype = np.dtype(
+    [
+        ("y", np.int32),
+        ("x", np.int32),
+        ("is_peak", np.int32),
+        ("mask_value", np.int32),
     ]
-    joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
-    sys.exit(0)
-    return
+)
+detection = np.empty(ns, dtype=dtype)
+detection["y"] = yx[0]
+detection["x"] = yx[1]
+detection["is_peak"] = np.ones(ns)
+detection["mask_value"] = np.zeros(ns)
 
+def run_sim_pair(seed, s2n, deep_noise_frac):
+    scale = 0.2
+    fpfs_config = anacal.fpfs.FpfsConfig(sigma_arcsec=0.52)
+    sim_p = simulate.sim_wide_deep(
+        seed=seed,
+        ngrid=ngrid,
+        scale=scale,
+        g1=0.02,
+        fwhm_w=0.9,
+        fwhm_d=0.7,
+        s2n=s2n,
+        deep_noise_frac=deep_noise_frac,
+    )
+    ep_wide = deep_anacal.measure_eR(
+        gal_array=sim_p["gal_w"]+sim_p["img_noise_w"], psf_array=sim_p["psf_w"],
+        noise_array=sim_p["img_noise_d"]+sim_p["noise_array_d"],
+        noise_variance=0.5*(sim_p["noise_std_w"]**2+2*sim_p["noise_std_d"]**2),
+        fpfs_config=fpfs_config, scale=scale, force_detection=True, detection=detection, component=1
+    )["e"][0]
+    Rp_deep = deep_anacal.measure_eR(
+        gal_array=sim_p["gal_d"]+sim_p["img_noise_d"], psf_array=sim_p["psf_d"],
+        noise_array=sim_p["noise_array_d"]+sim_p["img_noise_w"],
+        noise_variance=0.5*(sim_p["noise_std_w"]**2+2*sim_p["noise_std_d"]**2),
+        fpfs_config=fpfs_config, scale=scale, force_detection=True, detection=detection, component=1
+    )["R"][0]
+    sim_m = simulate.sim_wide_deep(
+        seed=seed,
+        ngrid=ngrid,
+        scale=scale,
+        g1=-0.02,
+        fwhm_w=0.9,
+        fwhm_d=0.7,
+        s2n=s2n,
+        deep_noise_frac=deep_noise_frac,
+    )
+    em_wide = deep_anacal.measure_eR(
+        gal_array=sim_m["gal_w"]+sim_m["img_noise_w"], psf_array=sim_m["psf_w"],
+        noise_array=sim_m["img_noise_d"]+sim_m["noise_array_d"],
+        noise_variance=0.5*(sim_m["noise_std_w"]**2+2*sim_m["noise_std_d"]**2),
+        fpfs_config=fpfs_config, scale=scale, force_detection=True, detection=detection, component=1
+    )["e"][0]
+    Rm_deep = deep_anacal.measure_eR(
+        gal_array=sim_m["gal_d"]+sim_m["img_noise_d"], psf_array=sim_m["psf_d"],
+        noise_array=sim_m["noise_array_d"]+sim_m["img_noise_w"],
+        noise_variance=0.5*(sim_m["noise_std_w"]**2+2*sim_m["noise_std_d"]**2),
+        fpfs_config=fpfs_config, scale=scale, force_detection=True, detection=detection, component=1
+    )["R"][0]
+    return (ep_wide, em_wide, Rp_deep, Rm_deep)
 
 def main():
-    parser = ArgumentParser(description="simulate isolated galaxy images")
-    parser.add_argument(
-        "--case_name",
-        type=str,
-        help="The case to run, e.g. case_1",
-    )
-    parser.add_argument(
-        "--exp_type",
-        type=str,
-        help="The exposure type, e.g. wide or deep",
-    )
-    parser.add_argument(
-        "--min_id",
-        default=0,
-        type=int,
-        help="minimum simulation id number, e.g. 0",
-    )
-    parser.add_argument(
-        "--max_id",
-        default=200,
-        type=int,
-        help="maximum simulation id number, e.g. 100",
-    )
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        "--ncores",
-        dest="n_cores",
-        default=1,
-        type=int,
-        help="Number of processes (uses multiprocessing).",
-    )
-    group.add_argument(
-        "--mpi",
-        dest="mpi",
-        default=False,
-        action="store_true",
-        help="Run with MPI.",
-    )
-    cmd_args = parser.parse_args()
-    case_name = cmd_args.case_name
-    exp_type = cmd_args.exp_type
-    min_id = cmd_args.min_id
-    max_id = cmd_args.max_id
-    run(
-        case_name=case_name,
-        exp_type=exp_type,
-        min_id=min_id,
-        max_id=max_id,
-    )
-    return
-
+    nsims = 1000
+    chunk_size = multiprocessing.cpu_count() * 100
+    nchunks = nsims // chunk_size + 1
+    s2n = 1e8
+    deep_noise_frac = 1 / np.sqrt(10) # deep image variance is 10x smaller
+    nsims = nchunks * chunk_size
+    rng = np.random.RandomState(seed=12)
+    seeds = rng.randint(size=nsims, low=1, high=2**29)
+    num1 = []
+    num2 = []
+    denom = []
+    loc = 0
+    for chunk in range(nchunks):
+        _seeds = seeds[loc:loc + chunk_size]
+        jobs = [
+            joblib.delayed(run_sim_pair)(seed, s2n, deep_noise_frac)
+            for seed in _seeds
+        ]
+        outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
+        for res in outputs:
+            num1.append(res[0] - res[1])
+            num2.append(res[0] + res[1])
+            denom.append(res[2] + res[3])
+        res = np.vstack([num1, num2, denom]).T
+        m, merr, c, cerr = utils.estimate_m_and_c(res=res, true_shear=0.02)
+        print("# of sims:", len(num1), flush=True)
+        print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
+        print("c: %f +/- %f [1e-4, 3-sigma]" % (c/1e-4, 3*cerr/1e-4), flush=True)
 
 if __name__ == "__main__":
     main()
