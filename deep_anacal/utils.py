@@ -184,6 +184,7 @@ def get_e_R(
     return ellip_plus, R_plus, ellip_minus, R_minus
 
 def estimate_m_and_c(*, res, true_shear=0.02):
+    res = np.asarray(res)
     nsim = res.shape[0]
     res_avg = np.average(res, axis=0)
     res_std = np.std(res, axis=0)

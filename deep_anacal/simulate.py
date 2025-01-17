@@ -46,10 +46,6 @@ def simulate_exponential(
     if fix_psf:
         psf = build_fixed_psf(fwhm=fwhm, psf_name=psf_name)
     gal = galsim.Convolve([gal, psf], gsparams=gsparams)
-    if do_shift:
-        shift_x = rng.uniform(low=-0.5, high=0.5) * scale
-        shift_y = rng.uniform(low=-0.5, high=0.5) * scale
-        gal.shift(shift_x, shift_y)
     gal = gal.shift(0.5 * scale, 0.5 * scale)
     gal_array = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
     psf_array = psf.shift(
@@ -103,7 +99,7 @@ def sim_wide_deep(
         fix_psf=fix_psf,
         fwhm=fwhm_d,
     )
-    noise_std_w = np.sqrt(np.sum(gal_array_w)) / s2n
+    noise_std_w = np.sqrt(np.sum(gal_array_w**2)) / s2n
     noise_std_d = noise_std_w * deep_noise_frac
     image_noise_w = np.random.RandomState(seed).normal(scale=noise_std_w, size=(gal_array_w.shape))
     image_noise_d = np.random.RandomState(seed+10).normal(scale=noise_std_d, size=(gal_array_d.shape))
