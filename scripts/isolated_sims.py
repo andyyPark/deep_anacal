@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import sys
+from argparse import ArgumentParser
 import numpy as np
 import joblib
 import multiprocessing
@@ -6,8 +8,23 @@ import multiprocessing
 import anacal
 from deep_anacal import deep_anacal, simulate, utils
 
-ngrid = 64
-def run_sim_pair(seed, nstamp, s2n, deep_noise_frac):
+case_dict = {
+    1: {
+        "gal_type": "exp",
+        "psf_name": "gaussian",
+        "fix_psf": True,
+        "fix_noise": True,
+    },
+    2: {
+        "gal_type": "exp",
+        "psf_name": "gaussian",
+        "fix_psf": True,
+        "fix_noise": False,
+    }
+}
+
+def run_sim_pair(seed, case, nstamp, s2n, deep_noise_frac):
+    ngrid = 64
     scale = 0.2
     fpfs_config = anacal.fpfs.FpfsConfig(sigma_arcsec=0.52)
     detection = utils.force_detection(ngrid=ngrid, nstamp=nstamp)
@@ -21,6 +38,7 @@ def run_sim_pair(seed, nstamp, s2n, deep_noise_frac):
         fwhm_d=0.7,
         s2n=s2n,
         deep_noise_frac=deep_noise_frac,
+        **case_dict[case]
     )
     wide_cat_p, deep_cat_p = deep_anacal.match_noise(
         seed=seed,
@@ -48,6 +66,7 @@ def run_sim_pair(seed, nstamp, s2n, deep_noise_frac):
         fwhm_d=0.7,
         s2n=s2n,
         deep_noise_frac=deep_noise_frac,
+        **case_dict[case],
     )
     wide_cat_m, deep_cat_m = deep_anacal.match_noise(
         seed=seed,
@@ -67,11 +86,32 @@ def run_sim_pair(seed, nstamp, s2n, deep_noise_frac):
     return (ep_wide, em_wide, Rp_deep, Rm_deep)
 
 def main():
-    nsims = 5000
+    parser = ArgumentParser(description="simulate isolated galaxy images")
+    parser.add_argument(
+        "--case",
+        default=1,
+        type=int,
+        help="case to run",
+    )
+    parser.add_argument(
+        "--nsims",
+        default=1000,
+        type=int,
+        help="number of simulations to run",
+    )
+    parser.add_argument(
+        "--nstamp",
+        default=50,
+        type=int,
+        help="number of stamps in each row and col",
+    )
+    cmd_args = parser.parse_args()
+    case = cmd_args.case
+    nsims = cmd_args.nsims
+    nstamp = cmd_args.nstamp
     chunk_size = multiprocessing.cpu_count()
     nchunks = nsims // chunk_size + 1
     s2n = 19
-    nstamp = 100
     deep_noise_frac = 1 / np.sqrt(10) # deep image variance is 10x smaller
     nsims = nchunks * chunk_size
     rng = np.random.RandomState(seed=12)
@@ -83,7 +123,7 @@ def main():
     for chunk in range(nchunks):
         _seeds = seeds[loc:loc + chunk_size]
         jobs = [
-            joblib.delayed(run_sim_pair)(seed, nstamp, s2n, deep_noise_frac)
+            joblib.delayed(run_sim_pair)(seed, case, nstamp, s2n, deep_noise_frac)
             for seed in _seeds
         ]
         outputs = joblib.Parallel(n_jobs=-1, verbose=10)(jobs)
@@ -91,12 +131,18 @@ def main():
             num1.append(res[0].sum() - res[1].sum())
             num2.append(res[0].sum() + res[1].sum())
             denom.append(res[2].sum() + res[3].sum())
+        del jobs, outputs
         res = np.vstack([num1, num2, denom]).T
         m, merr, c, cerr = utils.estimate_m_and_c(res=res, true_shear=0.02)
         print("# of sims:", len(num1), flush=True)
         print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
         print("c: %f +/- %f [1e-4, 3-sigma]" % (c/1e-4, 3*cerr/1e-4), flush=True)
         loc += chunk_size
+    print()
+    print(f"For case{case}")
+    print("# of sims:", len(num1), flush=True)
+    print("m: %f +/- %f [1e-3, 3-sigma]" % (m/1e-3, 3*merr/1e-3), flush=True)
+    print("c: %f +/- %f [1e-4, 3-sigma]" % (c/1e-4, 3*cerr/1e-4), flush=True)
 
 if __name__ == "__main__":
     main()
