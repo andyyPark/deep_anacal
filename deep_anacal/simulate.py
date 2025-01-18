@@ -63,13 +63,14 @@ def sim_wide_deep(
         g1=0.0,
         g2=0.0,
         hlr=0.5,
-        psf_name="gaussian",
-        fix_psf=True,
         gal_type='exp',
+        psf_name="gaussian",
         fwhm_w=0.9,
         fwhm_d=0.7,
+        fix_psf=True,
         s2n=1e8,
-        deep_noise_frac=1.0):
+        deep_noise_frac=1.0,
+        fix_noise=True):
     assert fwhm_w >= fwhm_d, "deep field usually has lower fwhm than wide field"
     # TODO - Add WLDeblend galaxy
     if gal_type == 'exp':
@@ -100,8 +101,23 @@ def sim_wide_deep(
     noise_std_d = noise_std_w * deep_noise_frac
     gal_array_w = np.tile(gal_array_w, (nstamp, nstamp))
     gal_array_d = np.tile(gal_array_d, (nstamp, nstamp))
-    image_noise_w = np.random.RandomState(seed).normal(scale=noise_std_w, size=(gal_array_w.shape))
-    image_noise_d = np.random.RandomState(seed+10).normal(scale=noise_std_d, size=(gal_array_d.shape))
+    rng = np.random.RandomState(seed=seed)
+    if not fix_noise:
+        scale_wide = rng.uniform(low=0.9, high=1.1)
+        scale_deep = rng.uniform(low=0.9, high=1.1)
+    else:
+        scale_wide = 1.0
+        scale_deep = 1.0
+    noise_std_w *= scale_wide
+    noise_std_d *= scale_deep
+    image_noise_w = rng.normal(
+        scale=noise_std_w,
+        size=(gal_array_w.shape)
+        )
+    image_noise_d = rng.normal(
+        scale=noise_std_d,
+        size=(gal_array_d.shape)
+        )
 
     return {
         "gal_w": gal_array_w,
