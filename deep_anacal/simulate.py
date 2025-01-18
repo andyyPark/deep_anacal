@@ -27,7 +27,6 @@ def simulate_exponential(
         *,
         ngrid,
         scale,
-        do_shift=False,
         flux=1,
         g1=0.0,
         g2=0.0,
@@ -59,7 +58,6 @@ def sim_wide_deep(
         seed,
         ngrid,
         scale,
-        do_shift=False,
         flux=1,
         g1=0.0,
         g2=0.0,
@@ -78,7 +76,6 @@ def sim_wide_deep(
     gal_array_w, psf_array_w = make_sim(
         ngrid=ngrid,
         scale=scale,
-        do_shift=do_shift,
         flux=flux,
         g1=g1,
         g2=g2,
@@ -90,7 +87,6 @@ def sim_wide_deep(
     gal_array_d, psf_array_d = make_sim(
         ngrid=ngrid,
         scale=scale,
-        do_shift=do_shift,
         flux=flux,
         g1=g1,
         g2=g2,
