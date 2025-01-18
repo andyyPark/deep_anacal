@@ -8,30 +8,60 @@ logger = setup_custom_logger()
 
 def build_fixed_psf(
         *,
-        fwhm,
+        field="wide",
         psf_name="gaussian",
 ):
-    if psf_name not in ["gaussian", "moffat"]:
-        raise ValueError(f"{psf_name} is not supported")
-    logger.info(
-        f"Creating {psf_name} PSF with fixed size of {fwhm}"
-    )
+    check_psf_params(field, psf_name)
+    fwhm = 0.9 if field == "wide" else 0.7
     if psf_name == "gaussian":
         psf = galsim.Gaussian(fwhm=fwhm)
     else:
         psf = galsim.Moffat(beta=2.5, fwhm=fwhm, trunc=0.6 * 4.0)
     return psf
+
+def build_variable_psf(
+        *,
+        seed,
+        field="wide",
+        psf_name="gaussian",
+):
+    check_psf_params(field, psf_name)
+    rng = np.random.RandomState(seed)
+    if field == "wide":
+        fwhm = rng.uniform(low=0.8, high=1.0)
+    else:
+        fwhm = rng.uniform(low=0.6, high=0.8)
+    psf_g1 = rng.uniform(low=-0.02, high=0.02)
+    psf_g2 = rng.uniform(low=-0.02, high=0.02)
+    if psf_name == "gaussian":
+        psf = galsim.Gaussian(fwhm=fwhm).shear(
+            g1=psf_g1,
+            g2=psf_g2
+        )
+    else:
+        psf = galsim.Moffat(beta=2.5, fwhm=fwhm, trunc=0.6 * 4.0).shear(
+            g1=psf_g1,
+            g2=psf_g2
+        )
+    return psf
+
+def check_psf_params(field, psf_name):
+    if field not in ["wide", "deep"]:
+        raise ValueError(f"{field} must be wide or deep")
+    if psf_name not in ["gaussian", "moffat"]:
+        raise ValueError(f"{psf_name} is not supported")
     
 
 def simulate_exponential(
         *,
+        seed,
         ngrid,
         scale,
         flux=1,
         g1=0.0,
         g2=0.0,
         hlr=0.5,
-        fwhm=0.6,
+        field="wide",
         psf_name="gaussian",
         fix_psf=True,
 ):
@@ -43,7 +73,9 @@ def simulate_exponential(
     gal = galsim.Exponential(half_light_radius=hlr).withFlux(flux).shear(g1=g1, g2=g2)
     # TODO - Build variable psf
     if fix_psf:
-        psf = build_fixed_psf(fwhm=fwhm, psf_name=psf_name)
+        psf = build_fixed_psf(field=field, psf_name=psf_name)
+    else:
+        psf = build_variable_psf(seed, field=field, psf_name=psf_name)
     gal = galsim.Convolve([gal, psf], gsparams=gsparams)
     gal = gal.shift(0.5 * scale, 0.5 * scale)
     gal_array = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
@@ -76,23 +108,27 @@ def sim_wide_deep(
     if gal_type == 'exp':
         make_sim = simulate_exponential
     gal_array_w, psf_array_w = make_sim(
+        seed=seed,
         ngrid=ngrid,
         scale=scale,
         flux=flux,
         g1=g1,
         g2=g2,
         hlr=hlr,
+        field="wide",
         psf_name=psf_name,
         fix_psf=fix_psf,
         fwhm=fwhm_w,
     )
     gal_array_d, psf_array_d = make_sim(
+        seed=seed,
         ngrid=ngrid,
         scale=scale,
         flux=flux,
         g1=g1,
         g2=g2,
         hlr=hlr,
+        field="deep",
         psf_name=psf_name,
         fix_psf=fix_psf,
         fwhm=fwhm_d,
