@@ -42,6 +42,27 @@ def setup_custom_logger(verbose=False):
         logger.addHandler(handler)
     return logger
 
+def force_detection(ngrid=64, nstamp=1):
+    indx = np.arange(ngrid // 2, ngrid * nstamp, ngrid)
+    indy = np.arange(ngrid // 2, ngrid * nstamp, ngrid)
+    ns = len(indx) * len(indy)
+    inds = np.meshgrid(indy, indx, indexing="ij")
+    yx = np.vstack([np.ravel(_) for _ in inds])
+    dtype = np.dtype(
+        [
+            ("y", np.int32),
+            ("x", np.int32),
+            ("is_peak", np.int32),
+            ("mask_value", np.int32),
+        ]
+    )
+    detection = np.empty(ns, dtype=dtype)
+    detection["y"] = yx[0]
+    detection["x"] = yx[1]
+    detection["is_peak"] = np.ones(ns)
+    detection["mask_value"] = np.zeros(ns)
+    return detection
+
 def apply_sel(*, acat, sel, sel_min):
     if sel is None:
         cat = acat

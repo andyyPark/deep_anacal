@@ -57,6 +57,7 @@ def sim_wide_deep(
         *,
         seed,
         ngrid,
+        nstamp,
         scale,
         flux=1,
         g1=0.0,
@@ -97,6 +98,8 @@ def sim_wide_deep(
     )
     noise_std_w = np.sqrt(np.sum(gal_array_w**2)) / s2n
     noise_std_d = noise_std_w * deep_noise_frac
+    gal_array_w = np.tile(gal_array_w, (nstamp, nstamp))
+    gal_array_d = np.tile(gal_array_d, (nstamp, nstamp))
     image_noise_w = np.random.RandomState(seed).normal(scale=noise_std_w, size=(gal_array_w.shape))
     image_noise_d = np.random.RandomState(seed+10).normal(scale=noise_std_d, size=(gal_array_d.shape))
 
