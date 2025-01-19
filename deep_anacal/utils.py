@@ -46,9 +46,11 @@ def setup_custom_logger(verbose=False):
     return logger
 
 
-def force_detection(ngrid=64, nstamp=1):
-    indx = np.arange(ngrid // 2, ngrid * nstamp, ngrid)
-    indy = np.arange(ngrid // 2, ngrid * nstamp, ngrid)
+def force_detection_coords(img_shape, ngrid=64):
+    stamp_x = img_shape[1] // ngrid
+    stamp_y = img_shape[0] // ngrid
+    indx = np.arange(ngrid // 2, ngrid * stamp_x, ngrid)
+    indy = np.arange(ngrid // 2, ngrid * stamp_y, ngrid)
     ns = len(indx) * len(indy)
     inds = np.meshgrid(indy, indx, indexing="ij")
     yx = np.vstack([np.ravel(_) for _ in inds])
