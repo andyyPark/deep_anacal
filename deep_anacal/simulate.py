@@ -65,10 +65,6 @@ def simulate_exponential(
         psf_name="gaussian",
         fix_psf=True,
 ):
-    logger = setup_custom_logger()
-    logger.info(
-        f"Simulating exponential galaxies with g1={g1} and g2={g2} and {psf_name} psf with fwhm={fwhm}"
-        )
     gsparams = galsim.GSParams(maximum_fft_size=10240)
     gal = galsim.Exponential(half_light_radius=hlr).withFlux(flux).shear(g1=g1, g2=g2)
     # TODO - Build variable psf
@@ -97,13 +93,10 @@ def sim_wide_deep(
         hlr=0.5,
         gal_type='exp',
         psf_name="gaussian",
-        fwhm_w=0.9,
-        fwhm_d=0.7,
         fix_psf=True,
         s2n=1e8,
         deep_noise_frac=1.0,
         fix_noise=True):
-    assert fwhm_w >= fwhm_d, "deep field usually has lower fwhm than wide field"
     # TODO - Add WLDeblend galaxy
     if gal_type == 'exp':
         make_sim = simulate_exponential
@@ -118,7 +111,6 @@ def sim_wide_deep(
         field="wide",
         psf_name=psf_name,
         fix_psf=fix_psf,
-        fwhm=fwhm_w,
     )
     gal_array_d, psf_array_d = make_sim(
         seed=seed,
@@ -131,7 +123,6 @@ def sim_wide_deep(
         field="deep",
         psf_name=psf_name,
         fix_psf=fix_psf,
-        fwhm=fwhm_d,
     )
     noise_std_w = np.sqrt(np.sum(gal_array_w**2)) / s2n
     noise_std_d = noise_std_w * deep_noise_frac
