@@ -1,5 +1,8 @@
+import os
 import logging
 import numpy as np
+import functools
+import fitsio
 
 CAT_FIELDS = [
     "fpfs_e1",
@@ -87,3 +90,11 @@ def estimate_m_and_c(*, res, true_shear=0.02):
     c = res_avg[1] / res_avg[2]
     cerr = res_std[1] / res_avg[2] / np.sqrt(nsim)
     return m, merr, c, cerr
+
+@functools.lru_cache()
+def cached_descwl_catalog_read():
+    fname = os.path.join(os.environ["CATSIM_DIR"], "OneDegSq.fits")
+    cat = fitsio.read(fname)
+    cut = cat['r_ab'] < 26.0
+    cat = cat[cut]
+    return cat
