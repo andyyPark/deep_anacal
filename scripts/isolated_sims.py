@@ -20,6 +20,12 @@ case_dict = {
         "psf_name": "gaussian",
         "fix_psf": True,
         "fix_noise": False,
+    },
+    3: {
+        "gal_type": "exp",
+        "psf_name": "gaussian",
+        "fix_psf": False,
+        "fix_noise": False,
     }
 }
 
@@ -34,8 +40,6 @@ def run_sim_pair(seed, case, nstamp, s2n, deep_noise_frac):
         nstamp=nstamp,
         scale=scale,
         g1=0.02,
-        fwhm_w=0.9,
-        fwhm_d=0.7,
         s2n=s2n,
         deep_noise_frac=deep_noise_frac,
         **case_dict[case]
@@ -62,8 +66,6 @@ def run_sim_pair(seed, case, nstamp, s2n, deep_noise_frac):
         nstamp=nstamp,
         scale=scale,
         g1=-0.02,
-        fwhm_w=0.9,
-        fwhm_d=0.7,
         s2n=s2n,
         deep_noise_frac=deep_noise_frac,
         **case_dict[case],

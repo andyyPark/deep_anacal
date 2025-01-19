@@ -71,7 +71,7 @@ def simulate_exponential(
     if fix_psf:
         psf = build_fixed_psf(field=field, psf_name=psf_name)
     else:
-        psf = build_variable_psf(seed, field=field, psf_name=psf_name)
+        psf = build_variable_psf(seed=seed, field=field, psf_name=psf_name)
     gal = galsim.Convolve([gal, psf], gsparams=gsparams)
     gal = gal.shift(0.5 * scale, 0.5 * scale)
     gal_array = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
