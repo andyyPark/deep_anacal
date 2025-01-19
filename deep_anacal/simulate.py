@@ -117,10 +117,11 @@ def simulate_descwl(
     cat["pa_bulge"] = cat["pa_disk"]
     rind = rng.choice(cat.size)
     angle = rng.uniform() * 360
-    gal = builder.from_catalog(cat[rind], 0, 0, survey.filter_band).model.rotate(
+    gal0 = builder.from_catalog(cat[rind], 0, 0, survey.filter_band).model.rotate(
         angle * galsim.degrees
     )
-    gal = gal.shear(g1=g1, g2=g2)
+    gal = gal0.shear(g1=g1, g2=g2)
+    gal90 = gal0.rotate(np.pi / 2 * galsim.radians).shear(g1=g1, g2=g2)
     if fix_psf:
         psf = build_fixed_psf(field=field, psf_name=psf_name)
     else:
@@ -129,12 +130,15 @@ def simulate_descwl(
     gal = galsim.Convolve([gal, psf], gsparams=gsparams)
     gal = gal.shift(0.5 * scale, 0.5 * scale)
     gal_array = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
+    gal90 = galsim.Convolve([gal90, psf], gsparams=gsparams)
+    gal90 = gal90.shift(0.5 * scale, 0.5 * scale)
+    gal90_array = gal90.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
     psf_array = (
         psf.shift(0.5 * scale, 0.5 * scale)
         .drawImage(nx=ngrid, ny=ngrid, scale=scale)
         .array
     )
-    return gal_array, psf_array
+    return (gal_array, gal90_array), psf_array
 
 
 def sim_wide_deep(
@@ -184,6 +188,11 @@ def sim_wide_deep(
         psf_name=psf_name,
         fix_psf=fix_psf,
     )
+    # Rotate intrinsic shape for descwl gals
+    if gal_type == "descwl":
+        gal_array_w = np.hstack([*gal_array_w])
+        gal_array_d = np.hstack([*gal_array_d])
+    # Noise properties
     if gal_type == "exp":
         noise_std_w = np.sqrt(np.sum(gal_array_w**2)) / s2n
         noise_std_d = noise_std_w * deep_noise_frac
