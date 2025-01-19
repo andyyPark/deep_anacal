@@ -26,6 +26,36 @@ case_dict = {
         "psf_name": "gaussian",
         "fix_psf": False,
         "fix_noise": False,
+    },
+    4: {
+        "gal_type": "descwl",
+        "psf_name": "gaussian",
+        "fix_psf": False,
+        "fix_noise": False,
+    },
+    5: {
+        "gal_type": "exp",
+        "psf_name": "moffat",
+        "fix_psf": True,
+        "fix_noise": True,
+    },
+    6: {
+        "gal_type": "exp",
+        "psf_name": "moffat",
+        "fix_psf": True,
+        "fix_noise": False,
+    },
+    7: {
+        "gal_type": "exp",
+        "psf_name": "moffat",
+        "fix_psf": False,
+        "fix_noise": False,
+    },
+    8: {
+        "gal_type": "descwl",
+        "psf_name": "moffat",
+        "fix_psf": False,
+        "fix_noise": False,
     }
 }
 
