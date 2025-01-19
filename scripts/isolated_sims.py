@@ -63,7 +63,6 @@ def run_sim_pair(seed, case, nstamp, s2n, deep_noise_frac):
     ngrid = 64
     scale = 0.2
     fpfs_config = anacal.fpfs.FpfsConfig(sigma_arcsec=0.52)
-    detection = utils.force_detection(ngrid=ngrid, nstamp=nstamp)
     sim_p = simulate.sim_wide_deep(
         seed=seed,
         ngrid=ngrid,
@@ -74,7 +73,8 @@ def run_sim_pair(seed, case, nstamp, s2n, deep_noise_frac):
         deep_noise_frac=deep_noise_frac,
         **case_dict[case]
     )
-    wide_cat_p, deep_cat_p = deep_anacal.match_noise(
+    detection = utils.force_detection_coords(img_shape=sim_p["gal_w"].shape, ngrid=ngrid)
+    wide_cat_p, deep_cat_p = deep_anacal.run_deep_anacal(
         seed=seed,
         scale=scale,
         fpfs_config=fpfs_config,
@@ -100,7 +100,7 @@ def run_sim_pair(seed, case, nstamp, s2n, deep_noise_frac):
         deep_noise_frac=deep_noise_frac,
         **case_dict[case],
     )
-    wide_cat_m, deep_cat_m = deep_anacal.match_noise(
+    wide_cat_m, deep_cat_m = deep_anacal.run_deep_anacal(
         seed=seed,
         scale=scale,
         fpfs_config=fpfs_config,
