@@ -45,6 +45,7 @@ def setup_custom_logger(verbose=False):
         logger.addHandler(handler)
     return logger
 
+
 def force_detection(ngrid=64, nstamp=1):
     indx = np.arange(ngrid // 2, ngrid * nstamp, ngrid)
     indy = np.arange(ngrid // 2, ngrid * nstamp, ngrid)
@@ -65,6 +66,7 @@ def force_detection(ngrid=64, nstamp=1):
     detection["is_peak"] = np.ones(ns)
     detection["mask_value"] = np.zeros(ns)
     return detection
+
 
 def apply_sel(*, acat, sel, sel_min):
     if sel is None:
@@ -91,10 +93,11 @@ def estimate_m_and_c(*, res, true_shear=0.02):
     cerr = res_std[1] / res_avg[2] / np.sqrt(nsim)
     return m, merr, c, cerr
 
+
 @functools.lru_cache()
 def cached_descwl_catalog_read():
     fname = os.path.join(os.environ["CATSIM_DIR"], "OneDegSq.fits")
     cat = fitsio.read(fname)
-    cut = cat['r_ab'] < 26.0
+    cut = cat["r_ab"] < 26.0
     cat = cat[cut]
     return cat
