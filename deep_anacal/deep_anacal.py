@@ -15,18 +15,25 @@ def get_max_smooth_scale(*, fwhm_w, fwhm_d, fpfs_config):
 def get_e_and_R(*, wide_cat, deep_cat, component=1, force_detection=True):
     ename = f"fpfs_e{component}"
     egname = f"fpfs_de{component}_dg{component}"
+    qname = f"fpfs_q{component}"
+    qgname = f"fpfs_dq{component}_dg{component}"
     wname = "fpfs_w"
     wgname = f"fpfs_dw_dg{component}"
     if force_detection:
         return {
             "e": wide_cat[ename],
+            "q": wide_cat[qname],
             "R": deep_cat[egname],
+            "Rq": deep_cat[qgname],
         }
     else:
         return {
             "e": wide_cat[wname] * wide_cat[ename],
+            "q": wide_cat[wname] * wide_cat[qname],
             "R": deep_cat[ename] * deep_cat[wgname]
             + deep_cat[wname] * deep_cat[egname],
+            "Rq": deep_cat[qname] * deep_cat[wgname]
+            + deep_cat[wname] * deep_cat[qgname]
         }
 
 
