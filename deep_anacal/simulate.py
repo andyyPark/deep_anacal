@@ -93,52 +93,67 @@ def get_survey():
     survey = descwl.survey.Survey(**pars)
     return survey
 
-
 def simulate_descwl(
     *,
     seed,
     ngrid,
+    nstamp,
     scale,
-    flux=1,
     g1=0.0,
     g2=0.0,
-    hlr=0.5,
     field="wide",
     psf_name="gaussian",
     fix_psf=True,
 ):
-    survey = get_survey()
-    builder = descwl.model.GalaxyBuilder(
-        survey=survey, no_disk=False, no_bulge=False, no_agn=False, verbose_model=False
-    )
+    ngal = nstamp * nstamp
     rng = np.random.RandomState(seed=seed)
-    cat = cached_descwl_catalog_read()
-    cat["pa_disk"] = rng.uniform(low=0.0, high=360.0, size=cat.size)
-    cat["pa_bulge"] = cat["pa_disk"]
-    rind = rng.choice(cat.size)
-    angle = rng.uniform() * 360
-    gal0 = builder.from_catalog(cat[rind], 0, 0, survey.filter_band).model.rotate(
-        angle * galsim.degrees
-    )
-    gal = gal0.shear(g1=g1, g2=g2)
-    gal90 = gal0.rotate(np.pi / 2 * galsim.radians).shear(g1=g1, g2=g2)
     if fix_psf:
         psf = build_fixed_psf(field=field, psf_name=psf_name)
     else:
         psf = build_variable_psf(seed=seed, field=field, psf_name=psf_name)
     gsparams = galsim.GSParams(maximum_fft_size=10240)
-    gal = galsim.Convolve([gal, psf], gsparams=gsparams)
-    gal = gal.shift(0.5 * scale, 0.5 * scale)
-    gal_array = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
-    gal90 = galsim.Convolve([gal90, psf], gsparams=gsparams)
-    gal90 = gal90.shift(0.5 * scale, 0.5 * scale)
-    gal90_array = gal90.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
+    survey = get_survey()
+    builder = descwl.model.GalaxyBuilder(
+        survey=survey, no_disk=False, no_bulge=False, no_agn=False, verbose_model=False
+    )
+    cat = cached_descwl_catalog_read()
+    cat["pa_disk"] = rng.uniform(low=0.0, high=360.0, size=cat.size)
+    cat["pa_bulge"] = cat["pa_disk"]
+    gal_image = galsim.ImageF(ngrid * nstamp, ngrid * nstamp, scale=scale)
+    gal_image.setOrigin(0, 0)
+    gal0 = None
+    for i in range(ngal):
+        ix = i % nstamp
+        iy = i // nstamp
+        irot = i % 2
+        igal = i // 2
+        if irot == 0:
+            del gal0
+            gal0 = builder.from_catalog(cat[igal], 0, 0, survey.filter_band).model.rotate(
+                rng.uniform() * 360 * galsim.degrees
+                )
+        else:
+            assert gal0 is not None
+            ang = np.pi / 2 * galsim.radians
+            gal0 = gal0.rotate(ang)
+
+        gal = gal0.shear(g1=g1, g2=g2)
+        gal = galsim.Convolve([psf, gal], gsparams=gsparams)
+        b = galsim.BoundsI(
+            ix * ngrid,
+            (ix + 1) * ngrid - 1,
+            iy * ngrid,
+            (iy + 1) * ngrid - 1,
+        )
+        sub_img = gal_image[b]
+        gal = gal.shift(0.5 * scale, 0.5 * scale)
+        gal.drawImage(sub_img, add_to_image=True)
     psf_array = (
         psf.shift(0.5 * scale, 0.5 * scale)
         .drawImage(nx=ngrid, ny=ngrid, scale=scale)
         .array
     )
-    return (gal_array, gal90_array), psf_array
+    return gal_image.array, psf_array
 
 
 def sim_wide_deep(
@@ -154,54 +169,84 @@ def sim_wide_deep(
     gal_type="exp",
     psf_name="gaussian",
     fix_psf=True,
-    s2n=1e8,
-    deep_noise_frac=1.0,
-    fix_noise=True,
 ):
     if gal_type not in ["exp", "descwl"]:
         raise ValueError(f"gal_type of {gal_type} not supported")
     if gal_type == "exp":
-        make_sim = simulate_exponential
+        gal_array_w, psf_array_w = simulate_exponential(
+            seed=seed,
+            ngrid=ngrid,
+            scale=scale,
+            flux=flux,
+            g1=g1,
+            g2=g2,
+            hlr=hlr,
+            field="wide",
+            psf_name=psf_name,
+            fix_psf=fix_psf,
+        )
+        gal_array_w = np.tile(gal_array_w, (nstamp, nstamp))
+        gal_array_d, psf_array_d = simulate_exponential(
+            seed=seed,
+            ngrid=ngrid,
+            scale=scale,
+            flux=flux,
+            g1=g1,
+            g2=g2,
+            hlr=hlr,
+            field="deep",
+            psf_name=psf_name,
+            fix_psf=fix_psf,
+        )
+        gal_array_d = np.tile(gal_array_d, (nstamp, nstamp))
     else:
-        make_sim = simulate_descwl
-    gal_array_w, psf_array_w = make_sim(
-        seed=seed,
-        ngrid=ngrid,
-        scale=scale,
-        flux=flux,
-        g1=g1,
-        g2=g2,
-        hlr=hlr,
-        field="wide",
-        psf_name=psf_name,
-        fix_psf=fix_psf,
-    )
-    gal_array_d, psf_array_d = make_sim(
-        seed=seed,
-        ngrid=ngrid,
-        scale=scale,
-        flux=flux,
-        g1=g1,
-        g2=g2,
-        hlr=hlr,
-        field="deep",
-        psf_name=psf_name,
-        fix_psf=fix_psf,
-    )
-    # Rotate intrinsic shape for descwl gals
-    if gal_type == "descwl":
-        gal_array_w = np.hstack([*gal_array_w])
-        gal_array_d = np.hstack([*gal_array_d])
+        gal_array_w, psf_array_w = simulate_descwl(
+            seed=seed,
+            ngrid=ngrid,
+            nstamp=nstamp,
+            scale=scale,
+            g1=g1,
+            g2=g2,
+            field="wide",
+            psf_name=psf_name,
+            fix_psf=fix_psf,
+        )
+        gal_array_d, psf_array_d = simulate_descwl(
+            seed=seed,
+            ngrid=ngrid,
+            nstamp=nstamp,
+            scale=scale,
+            g1=g1,
+            g2=g2,
+            field="deep",
+            psf_name=psf_name,
+            fix_psf=fix_psf,
+        )
+    return {
+        "gal_w": gal_array_w,
+        "psf_w": psf_array_w,
+        "gal_d": gal_array_d,
+        "psf_d": psf_array_d
+    }
+
+def simulate_noise(
+    *,
+    seed,
+    shape,
+    gal_type="exp",
+    s2n=1e8,
+    deep_noise_frac=1.,
+    fix_noise=True,
+    signal=0
+):
     # Noise properties
     if gal_type == "exp":
-        noise_std_w = np.sqrt(np.sum(gal_array_w**2)) / s2n
+        noise_std_w = signal / s2n
         noise_std_d = noise_std_w * deep_noise_frac
     else:
         survey = get_survey()
         noise_std_w = np.sqrt(survey.mean_sky_level)
         noise_std_d = noise_std_w * deep_noise_frac
-    gal_array_w = np.tile(gal_array_w, (nstamp, nstamp))
-    gal_array_d = np.tile(gal_array_d, (nstamp, nstamp))
     rng = np.random.RandomState(seed=seed)
     if not fix_noise:
         scale_wide = rng.uniform(low=0.9, high=1.1)
@@ -211,16 +256,12 @@ def sim_wide_deep(
         scale_deep = 1.0
     noise_std_w *= scale_wide
     noise_std_d *= scale_deep
-    image_noise_w = rng.normal(scale=noise_std_w, size=(gal_array_w.shape))
-    image_noise_d = rng.normal(scale=noise_std_d, size=(gal_array_d.shape))
+    image_noise_w = rng.normal(scale=noise_std_w, size=shape)
+    image_noise_d = rng.normal(scale=noise_std_d, size=shape)
 
     return {
-        "gal_w": gal_array_w,
         "img_noise_w": image_noise_w,
-        "psf_w": psf_array_w,
         "noise_std_w": noise_std_w,
-        "gal_d": gal_array_d,
         "img_noise_d": image_noise_d,
-        "psf_d": psf_array_d,
         "noise_std_d": noise_std_d,
     }
