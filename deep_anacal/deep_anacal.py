@@ -33,7 +33,7 @@ def get_e_and_R(*, wide_cat, deep_cat, component=1, force_detection=True):
             "R": deep_cat[ename] * deep_cat[wgname]
             + deep_cat[wname] * deep_cat[egname],
             "Rq": deep_cat[qname] * deep_cat[wgname]
-            + deep_cat[wname] * deep_cat[qgname]
+            + deep_cat[wname] * deep_cat[qgname],
         }
 
 

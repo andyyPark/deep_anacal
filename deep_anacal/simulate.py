@@ -93,6 +93,7 @@ def get_survey():
     survey = descwl.survey.Survey(**pars)
     return survey
 
+
 def simulate_descwl(
     *,
     seed,
@@ -129,9 +130,9 @@ def simulate_descwl(
         igal = i // 2
         if irot == 0:
             del gal0
-            gal0 = builder.from_catalog(cat[igal], 0, 0, survey.filter_band).model.rotate(
-                rng.uniform() * 360 * galsim.degrees
-                )
+            gal0 = builder.from_catalog(
+                cat[igal], 0, 0, survey.filter_band
+            ).model.rotate(rng.uniform() * 360 * galsim.degrees)
         else:
             assert gal0 is not None
             ang = np.pi / 2 * galsim.radians
@@ -226,8 +227,9 @@ def sim_wide_deep(
         "gal_w": gal_array_w,
         "psf_w": psf_array_w,
         "gal_d": gal_array_d,
-        "psf_d": psf_array_d
+        "psf_d": psf_array_d,
     }
+
 
 def simulate_noise(
     *,
@@ -235,9 +237,9 @@ def simulate_noise(
     shape,
     gal_type="exp",
     s2n=1e8,
-    deep_noise_frac=1.,
+    deep_noise_frac=1.0,
     fix_noise=True,
-    signal=0
+    signal=1e8,
 ):
     # Noise properties
     if gal_type == "exp":
