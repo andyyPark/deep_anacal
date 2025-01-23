@@ -157,7 +157,7 @@ def simulate_descwl(
     return gal_image.array, psf_array
 
 
-def sim_wide_deep(
+def simulate_wide_deep(
     *,
     seed,
     ngrid,
