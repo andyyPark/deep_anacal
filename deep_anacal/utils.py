@@ -89,11 +89,41 @@ def estimate_m_and_c(*, res, true_shear=0.02):
     nsim = res.shape[0]
     res_avg = np.average(res, axis=0)
     res_std = np.std(res, axis=0)
-    m = res_avg[0] / res_avg[2] / true_shear - 1
-    merr = res_std[0] / res_avg[2] / true_shear / np.sqrt(nsim)
-    c = res_avg[1] / res_avg[2]
-    cerr = res_std[1] / res_avg[2] / np.sqrt(nsim)
+    m = res_avg[1] / res_avg[3] / true_shear / 2.0 - 1
+    merr = res_std[1] / res_avg[3] / true_shear / 2.0 / np.sqrt(nsim)
+    c = res_avg[2] / res_avg[3]
+    cerr = res_std[2] / res_avg[3] / np.sqrt(nsim)
     return m, merr, c, cerr
+
+
+def run_bootstrap(ep, em, Rp, Rm, true_shear=0.02, seed=123):
+    rng = np.random.RandomState(seed)
+    mvals = []
+    cvals = []
+    ep = np.asarray(ep)
+    em = np.asarray(em)
+    Rp = np.asarray(Rp)
+    Rm = np.asarray(Rm)
+    y1 = (ep - em) / 2.0
+    y2 = (ep + em) / 2.0
+    x = (Rp + Rm) / 2.0
+    for _ in range(500):
+        ind = rng.choice(len(y1), replace=True, size=len(y1))
+        m = (np.sum(ep[ind]) - np.sum(em[ind])) / (
+            np.sum(Rp[ind]) + np.sum(Rm[ind])
+        ) / true_shear - 1
+        c = (np.sum(ep[ind]) + np.sum(em[ind])) / (np.sum(Rp[ind]) + np.sum(Rm[ind]))
+        mvals.append(m)
+        cvals.append(c)
+    return (
+        (np.sum(ep[ind]) - np.sum(em[ind]))
+        / (np.sum(Rp[ind]) + np.sum(Rm[ind]))
+        / true_shear
+        - 1,
+        np.std(mvals),
+        (np.sum(ep[ind]) + np.sum(em[ind])) / (np.sum(Rp[ind]) + np.sum(Rm[ind])),
+        np.std(cvals),
+    )
 
 
 @functools.lru_cache()
