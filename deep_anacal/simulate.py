@@ -11,11 +11,11 @@ logger = setup_custom_logger()
 
 def build_fixed_psf(
     *,
+    fwhm,
     field="wide",
     psf_name="gaussian",
 ):
     check_psf_params(field, psf_name)
-    fwhm = 0.9 if field == "wide" else 0.7
     if psf_name == "gaussian":
         psf = galsim.Gaussian(fwhm=fwhm)
     else:
@@ -26,15 +26,13 @@ def build_fixed_psf(
 def build_variable_psf(
     *,
     seed,
+    fwhm,
     field="wide",
     psf_name="gaussian",
 ):
     check_psf_params(field, psf_name)
     rng = np.random.RandomState(seed)
-    if field == "wide":
-        fwhm = rng.uniform(low=0.8, high=1.0)
-    else:
-        fwhm = rng.uniform(low=0.6, high=0.8)
+    fwhm = rng.uniform(low=fwhm-0.1, high=fwhm+0.1)
     psf_g1 = rng.uniform(low=-0.02, high=0.02)
     psf_g2 = rng.uniform(low=-0.02, high=0.02)
     if psf_name == "gaussian":
@@ -63,15 +61,16 @@ def simulate_exponential(
     g2=0.0,
     hlr=0.5,
     field="wide",
+    fwhm=0.9,
     psf_name="gaussian",
     fix_psf=True,
 ):
     gsparams = galsim.GSParams(maximum_fft_size=10240)
     gal = galsim.Exponential(half_light_radius=hlr).withFlux(flux).shear(g1=g1, g2=g2)
     if fix_psf:
-        psf = build_fixed_psf(field=field, psf_name=psf_name)
+        psf = build_fixed_psf(fwhm=fwhm, field=field, psf_name=psf_name)
     else:
-        psf = build_variable_psf(seed=seed, field=field, psf_name=psf_name)
+        psf = build_variable_psf(seed=seed, fwhm=fwhm, field=field, psf_name=psf_name)
     gal = galsim.Convolve([gal, psf], gsparams=gsparams)
     gal = gal.shift(0.5 * scale, 0.5 * scale)
     gal_array = gal.drawImage(nx=ngrid, ny=ngrid, scale=scale).array
@@ -103,15 +102,16 @@ def simulate_descwl(
     g1=0.0,
     g2=0.0,
     field="wide",
+    fwhm=0.9,
     psf_name="gaussian",
     fix_psf=True,
 ):
     ngal = nstamp * nstamp
     rng = np.random.RandomState(seed=seed)
     if fix_psf:
-        psf = build_fixed_psf(field=field, psf_name=psf_name)
+        psf = build_fixed_psf(fwhm=fwhm, field=field, psf_name=psf_name)
     else:
-        psf = build_variable_psf(seed=seed, field=field, psf_name=psf_name)
+        psf = build_variable_psf(seed=seed, fwhm=fwhm, field=field, psf_name=psf_name)
     gsparams = galsim.GSParams(maximum_fft_size=10240)
     survey = get_survey()
     builder = descwl.model.GalaxyBuilder(
@@ -168,6 +168,8 @@ def sim_wide_deep(
     g2=0.0,
     hlr=0.5,
     gal_type="exp",
+    fwhm_w=0.9,
+    fwhm_d=0.7,
     psf_name="gaussian",
     fix_psf=True,
 ):
@@ -183,6 +185,7 @@ def sim_wide_deep(
             g2=g2,
             hlr=hlr,
             field="wide",
+            fwhm=fwhm_w,
             psf_name=psf_name,
             fix_psf=fix_psf,
         )
@@ -196,6 +199,7 @@ def sim_wide_deep(
             g2=g2,
             hlr=hlr,
             field="deep",
+            fwhm=fwhm_d,
             psf_name=psf_name,
             fix_psf=fix_psf,
         )
@@ -209,6 +213,7 @@ def sim_wide_deep(
             g1=g1,
             g2=g2,
             field="wide",
+            fwhm=fwhm_w,
             psf_name=psf_name,
             fix_psf=fix_psf,
         )
@@ -220,6 +225,7 @@ def sim_wide_deep(
             g1=g1,
             g2=g2,
             field="deep",
+            fwhm=fwhm_d,
             psf_name=psf_name,
             fix_psf=fix_psf,
         )
@@ -236,14 +242,18 @@ def simulate_noise(
     seed,
     shape,
     gal_type="exp",
-    s2n=1e8,
     deep_noise_frac=1.0,
     fix_noise=True,
-    signal=1e8,
+    **kwargs,
 ):
     # Noise properties
     if gal_type == "exp":
-        noise_std_w = signal / s2n
+        if "noise_std_w" in kwargs: 
+            noise_std_w = kwargs["noise_std_w"]
+        else:
+            signal = kwargs.get("signal", 1e8)
+            s2n = kwargs.get("s2n", 1e8)
+            noise_std_w = signal / s2n
         noise_std_d = noise_std_w * deep_noise_frac
     else:
         survey = get_survey()
