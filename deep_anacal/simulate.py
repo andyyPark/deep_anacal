@@ -12,10 +12,10 @@ logger = setup_custom_logger()
 def build_fixed_psf(
     *,
     fwhm,
-    field="wide",
     psf_name="gaussian",
 ):
-    check_psf_params(field, psf_name)
+    if psf_name not in ["gaussian", "moffat"]:
+        raise ValueError(f"{psf_name} is not supported")
     if psf_name == "gaussian":
         psf = galsim.Gaussian(fwhm=fwhm)
     else:
@@ -27,10 +27,10 @@ def build_variable_psf(
     *,
     seed,
     fwhm,
-    field="wide",
     psf_name="gaussian",
 ):
-    check_psf_params(field, psf_name)
+    if psf_name not in ["gaussian", "moffat"]:
+        raise ValueError(f"{psf_name} is not supported")
     rng = np.random.RandomState(seed)
     fwhm = rng.uniform(low=fwhm-0.1, high=fwhm+0.1)
     psf_g1 = rng.uniform(low=-0.02, high=0.02)
@@ -42,13 +42,6 @@ def build_variable_psf(
             g1=psf_g1, g2=psf_g2
         )
     return psf
-
-
-def check_psf_params(field, psf_name):
-    if field not in ["wide", "deep"]:
-        raise ValueError(f"{field} must be wide or deep")
-    if psf_name not in ["gaussian", "moffat"]:
-        raise ValueError(f"{psf_name} is not supported")
 
 
 def simulate_exponential(
