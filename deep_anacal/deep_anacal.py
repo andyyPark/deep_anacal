@@ -66,7 +66,8 @@ def match_noise(
     psf_array_d,
     noise_var_w,
     noise_var_d,
-    detection,
+    detection_w,
+    detection_d,
 ):
     rng = np.random.RandomState(seed=seed)
     # Wide + Deep for response:
@@ -76,7 +77,7 @@ def match_noise(
     deep_data, deep_noise = ftask_d.run_psf_array(
         gal_array=gal_array_d,
         psf_array=psf_array_d,
-        det=detection,
+        det=detection_d,
         noise_array=pure_noise_d_rot,
     )
     pure_noise_w1 = pure_noise(rng, noise_var_w / 2, gal_array_w.shape)
@@ -84,13 +85,13 @@ def match_noise(
     _, pure_noise_w1 = ftask_w.run_psf_array(
         gal_array=z2d,
         psf_array=psf_array_w,
-        det=detection,
+        det=detection_d,
         noise_array=pure_noise_w1,
     )
     _, pure_noise_w2 = ftask_w.run_psf_array(
         gal_array=z2d,
         psf_array=psf_array_w,
-        det=detection,
+        det=detection_d,
         noise_array=pure_noise_w2,
     )
     deep_data = deep_data + pure_noise_w1 + pure_noise_w2
@@ -101,16 +102,16 @@ def match_noise(
     src_deep = {"data": deep_data, "noise": deep_noise}
     # Wide + Deep for ellipticity
     wide_data, _ = ftask_w.run_psf_array(
-        gal_array=gal_array_w, psf_array=psf_array_w, det=detection, noise_array=None
+        gal_array=gal_array_w, psf_array=psf_array_w, det=detection_w, noise_array=None
     )
     _, pure_noise_d1 = ftask_d.run_psf_array(
         gal_array=z2d,
         psf_array=psf_array_d,
-        det=detection,
+        det=detection_w,
         noise_array=pure_noise_d_rot,
     )
     _, pure_noise_d2 = ftask_d.run_psf_array(
-        gal_array=z2d, psf_array=psf_array_d, det=detection, noise_array=pure_noise_d
+        gal_array=z2d, psf_array=psf_array_d, det=detection_w, noise_array=pure_noise_d
     )
     wide_data = wide_data + pure_noise_d1 + pure_noise_d2
     wide_data = rfn.unstructured_to_structured(arr=wide_data, dtype=ftask_w.dtype)
@@ -163,7 +164,8 @@ def run_deep_anacal(
     psf_array_d,
     noise_var_w,
     noise_var_d,
-    detection,
+    detection_w,
+    detection_d,
 ):
     # After matching noise they have one wide + 2 deep
     noise_var_match = 0.5 * (noise_var_w + 2 * noise_var_d)
@@ -179,7 +181,8 @@ def run_deep_anacal(
         psf_array_d=psf_array_d,
         noise_var_w=noise_var_w,
         noise_var_d=noise_var_d,
-        detection=detection,
+        detection_w=detection_w,
+        detection_d=detection_d,
     )
     wide_fpfs, deep_fpfs = run_wide_deep_meas(
         fpfs_config=fpfs_config,
