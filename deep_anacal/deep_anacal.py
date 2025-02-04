@@ -2,6 +2,35 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import anacal
 
+nx = 64
+ny = 64
+norder = 6
+klim = 2.650718801466388/0.2
+
+def prepare_fpfs_bases(*, scale, fpfs_config):
+    """This fucntion prepare the FPFS bases (shapelets and detectlets)"""
+    bfunc = []
+    colnames = []
+    sfunc, snames = anacal.fpfs.base.shapelets2d(
+        norder=norder,
+        npix=fpfs_config.npix,
+        sigma=scale / fpfs_config.sigma_arcsec,
+        kmax=klim*scale,
+    )
+    bfunc.append(sfunc)
+    colnames = colnames + snames
+    dfunc, dnames = anacal.fpfs.base.detlets2d(
+        npix=fpfs_config.npix,
+        sigma=scale / fpfs_config.sigma_arcsec,
+        kmax=klim*scale,
+    )
+    bfunc.append(dfunc)
+    colnames = colnames + dnames
+    bfunc = np.vstack(bfunc)
+    bfunc_use = np.transpose(bfunc, (1, 2, 0))
+    dtype = [(name, "f8") for name in colnames]
+    return bfunc_use, dtype
+
 
 def get_max_smooth_scale(*, fwhm_w, fwhm_d, fpfs_config):
     fac = 2.0 * np.sqrt(2.0 * np.log(2))
@@ -57,77 +86,80 @@ def pure_noise(rng, noise_var, shape, rotate=False):
 
 def match_noise(
     *,
-    seed,
-    ftask_w,
-    ftask_d,
+    scale,
+    fpfs_config,
     gal_array_w,
     gal_array_d,
     psf_array_w,
     psf_array_d,
-    noise_var_w,
-    noise_var_d,
+    noise_array_w,
+    noise_array_d,
+    noise_array_d90,
     detection_w,
     detection_d,
 ):
-    rng = np.random.RandomState(seed=seed)
-    # Wide + Deep for response:
-    pure_noise_d = pure_noise(rng, noise_var_d, gal_array_d.shape)
-    pure_noise_d_rot = pure_noise(rng, noise_var_d, gal_array_d.shape, rotate=True)
-    z2d = np.zeros_like(gal_array_d)
-    deep_data, deep_noise = ftask_d.run_psf_array(
-        gal_array=gal_array_d,
-        psf_array=psf_array_d,
-        det=detection_d,
-        noise_array=pure_noise_d_rot,
+    mtask = anacal.fpfs.FpfsDeepWideImage(
+        nx=nx, ny=ny, scale=scale,
+        sigma_arcsec=fpfs_config.sigma_arcsec, klim=klim,
+        use_estimate=True
     )
-    pure_noise_w1 = pure_noise(rng, noise_var_w / 2, gal_array_w.shape)
-    pure_noise_w2 = pure_noise(rng, noise_var_w / 2, gal_array_w.shape)
-    _, pure_noise_w1 = ftask_w.run_psf_array(
-        gal_array=z2d,
-        psf_array=psf_array_w,
-        det=detection_d,
-        noise_array=pure_noise_w1,
-    )
-    _, pure_noise_w2 = ftask_w.run_psf_array(
-        gal_array=z2d,
-        psf_array=psf_array_w,
-        det=detection_d,
-        noise_array=pure_noise_w2,
-    )
-    deep_data = deep_data + pure_noise_w1 + pure_noise_w2
-    deep_noise = deep_noise + pure_noise_w1
+    bfunc_use, dtype = prepare_fpfs_bases(scale=scale, fpfs_config=fpfs_config)
 
-    deep_data = rfn.unstructured_to_structured(arr=deep_data, dtype=ftask_d.dtype)
-    deep_noise = rfn.unstructured_to_structured(arr=deep_noise, dtype=ftask_d.dtype)
-    src_deep = {"data": deep_data, "noise": deep_noise}
-    # Wide + Deep for ellipticity
-    wide_data, _ = ftask_w.run_psf_array(
-        gal_array=gal_array_w, psf_array=psf_array_w, det=detection_w, noise_array=None
+    nu_wide = mtask.measure_source(
+        gal_array=gal_array_w,
+        filter_image=bfunc_use,
+        psf_array=psf_array_w,
+        det=detection_w,
+        do_rotate=False
     )
-    _, pure_noise_d1 = ftask_d.run_psf_array(
-        gal_array=z2d,
+    dnu_deep_w = mtask.measure_source(
+        gal_array=noise_array_d + noise_array_d90,
+        filter_image=bfunc_use,
         psf_array=psf_array_d,
         det=detection_w,
-        noise_array=pure_noise_d_rot,
+        do_rotate=False
     )
-    _, pure_noise_d2 = ftask_d.run_psf_array(
-        gal_array=z2d, psf_array=psf_array_d, det=detection_w, noise_array=pure_noise_d
+    meas_wide = nu_wide + dnu_deep_w
+    meas_wide = rfn.unstructured_to_structured(meas_wide, dtype=dtype)
+    src_wide = {"data": meas_wide, "noise": None}
+
+    nu_deep = mtask.measure_source(
+        gal_array=gal_array_d,
+        filter_image=bfunc_use,
+        psf_array=psf_array_d,
+        det=detection_d,
+        do_rotate=False
+        )
+    dnu_deep_d = mtask.measure_source(
+        gal_array=noise_array_d90,
+        filter_image=bfunc_use,
+        psf_array=psf_array_d,
+        det=detection_d,
+        do_rotate=False
     )
-    wide_data = wide_data + pure_noise_d1 + pure_noise_d2
-    wide_data = rfn.unstructured_to_structured(arr=wide_data, dtype=ftask_w.dtype)
-    src_wide = {"data": wide_data, "noise": None}
+    dnu_wide_d = mtask.measure_source(
+        gal_array=noise_array_w,
+        filter_image=bfunc_use,
+        psf_array=psf_array_w,
+        det=detection_d,
+        do_rotate=False
+    )
+    meas_deep = nu_deep + dnu_deep_d + dnu_wide_d
+    meas_deep = rfn.unstructured_to_structured(meas_deep, dtype=dtype)
+    meas_deep_n = rfn.unstructured_to_structured(dnu_deep_d + 0.5*dnu_wide_d/np.sqrt(2), dtype=dtype)
+    src_deep = {"data": meas_deep, "noise": meas_deep_n}
     return src_wide, src_deep
 
 
-def run_wide_deep_meas(*, fpfs_config, ftask_w, ftask_d, src_wide, src_deep):
+def run_wide_deep_meas(*, fpfs_config, std_m00, src_wide, src_deep):
     # Wide source measurement
     wide_meas = anacal.fpfs.measure_fpfs(
         C0=fpfs_config.c0,
         v_min=fpfs_config.v_min,
         omega_v=fpfs_config.omega_v,
         pthres=fpfs_config.pthres,
-        std_m00=ftask_w.std_m00,
-        m00_min=ftask_w.std_m00 * fpfs_config.snr_min,
+        std_m00=std_m00,
+        m00_min=std_m00 * fpfs_config.snr_min,
         r2_min=fpfs_config.r2_min,
         omega_r2=fpfs_config.omega_r2,
         x_array=src_wide["data"],
@@ -141,8 +173,8 @@ def run_wide_deep_meas(*, fpfs_config, ftask_w, ftask_d, src_wide, src_deep):
         v_min=fpfs_config.v_min,
         omega_v=fpfs_config.omega_v,
         pthres=fpfs_config.pthres,
-        std_m00=ftask_d.std_m00,
-        m00_min=ftask_d.std_m00 * fpfs_config.snr_min,
+        std_m00=std_m00,
+        m00_min=std_m00 * fpfs_config.snr_min,
         r2_min=fpfs_config.r2_min,
         omega_r2=fpfs_config.omega_r2,
         x_array=src_deep["data"],
@@ -155,7 +187,6 @@ def run_wide_deep_meas(*, fpfs_config, ftask_w, ftask_d, src_wide, src_deep):
 
 def run_deep_anacal(
     *,
-    seed,
     scale,
     fpfs_config,
     gal_array_w,
@@ -164,30 +195,31 @@ def run_deep_anacal(
     psf_array_d,
     noise_var_w,
     noise_var_d,
+    noise_array_w,
+    noise_array_d,
+    noise_array_d90,
     detection_w,
     detection_d,
 ):
-    # After matching noise they have one wide + 2 deep
-    noise_var_match = 0.5 * (noise_var_w + 2 * noise_var_d)
-    ftask_w = create_fpfs_task(fpfs_config, scale, noise_var_match, psf_array_w)
-    ftask_d = create_fpfs_task(fpfs_config, scale, noise_var_match, psf_array_d)
+    ftask_w = create_fpfs_task(fpfs_config, scale, 0.5 * noise_var_w, psf_array_w)
+    ftask_d = create_fpfs_task(fpfs_config, scale, noise_var_d, psf_array_d)
+    std_m00 = np.sqrt(ftask_w.std_m00 ** 2 + ftask_d.std_m00 ** 2)
     src_wide, src_deep = match_noise(
-        seed=seed,
-        ftask_w=ftask_w,
-        ftask_d=ftask_d,
+        scale=scale,
+        fpfs_config=fpfs_config,
         gal_array_w=gal_array_w,
         gal_array_d=gal_array_d,
         psf_array_w=psf_array_w,
         psf_array_d=psf_array_d,
-        noise_var_w=noise_var_w,
-        noise_var_d=noise_var_d,
+        noise_array_w=noise_array_w,
+        noise_array_d=noise_array_d,
+        noise_array_d90=noise_array_d90,
         detection_w=detection_w,
         detection_d=detection_d,
     )
     wide_fpfs, deep_fpfs = run_wide_deep_meas(
         fpfs_config=fpfs_config,
-        ftask_w=ftask_w,
-        ftask_d=ftask_d,
+        std_m00=std_m00,
         src_wide=src_wide,
         src_deep=src_deep,
     )
