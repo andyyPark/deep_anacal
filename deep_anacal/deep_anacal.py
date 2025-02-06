@@ -146,7 +146,7 @@ def match_noise(
     )
     meas_deep = nu_deep + dnu_deep_d + dnu_wide_d
     meas_deep = rfn.unstructured_to_structured(meas_deep, dtype=dtype)
-    meas_deep_n = rfn.unstructured_to_structured(dnu_deep_d + 0.5*dnu_wide_d/np.sqrt(2), dtype=dtype)
+    meas_deep_n = rfn.unstructured_to_structured(dnu_deep_d + 0.5*dnu_wide_d, dtype=dtype)
     src_deep = {"data": meas_deep, "noise": meas_deep_n}
     return src_wide, src_deep
 
