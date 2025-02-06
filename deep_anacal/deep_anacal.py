@@ -78,12 +78,6 @@ def create_fpfs_task(fpfs_config, scale, noise_var, psf_array, do_detection=True
         bound=fpfs_config.bound,
     )
 
-
-def pure_noise(rng, noise_var, shape, rotate=False):
-    noise = rng.normal(scale=np.sqrt(noise_var), size=shape)
-    return np.rot90(noise, k=-1) if rotate else noise
-
-
 def match_noise(
     *,
     scale,
