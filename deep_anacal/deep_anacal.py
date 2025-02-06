@@ -204,6 +204,7 @@ def run_deep_anacal(
     ftask_w = create_fpfs_task(fpfs_config, scale, 0.5 * noise_var_w, psf_array_w)
     ftask_d = create_fpfs_task(fpfs_config, scale, noise_var_d, psf_array_d)
     std_m00 = np.sqrt(ftask_w.std_m00 ** 2 + ftask_d.std_m00 ** 2)
+    fpfs_config.c0 = 4.0 * std_m00
     src_wide, src_deep = match_noise(
         scale=scale,
         fpfs_config=fpfs_config,
