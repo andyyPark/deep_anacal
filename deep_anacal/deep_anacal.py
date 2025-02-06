@@ -5,7 +5,8 @@ import anacal
 nx = 64
 ny = 64
 norder = 6
-klim = 2.650718801466388/0.2
+klim = 2.650718801466388 / 0.2
+
 
 def prepare_fpfs_bases(*, scale, fpfs_config):
     """This fucntion prepare the FPFS bases (shapelets and detectlets)"""
@@ -15,14 +16,14 @@ def prepare_fpfs_bases(*, scale, fpfs_config):
         norder=norder,
         npix=fpfs_config.npix,
         sigma=scale / fpfs_config.sigma_arcsec,
-        kmax=klim*scale,
+        kmax=klim * scale,
     )
     bfunc.append(sfunc)
     colnames = colnames + snames
     dfunc, dnames = anacal.fpfs.base.detlets2d(
         npix=fpfs_config.npix,
         sigma=scale / fpfs_config.sigma_arcsec,
-        kmax=klim*scale,
+        kmax=klim * scale,
     )
     bfunc.append(dfunc)
     colnames = colnames + dnames
@@ -78,6 +79,7 @@ def create_fpfs_task(fpfs_config, scale, noise_var, psf_array, do_detection=True
         bound=fpfs_config.bound,
     )
 
+
 def match_noise(
     *,
     scale,
@@ -93,9 +95,12 @@ def match_noise(
     detection_d,
 ):
     mtask = anacal.fpfs.FpfsDeepWideImage(
-        nx=nx, ny=ny, scale=scale,
-        sigma_arcsec=fpfs_config.sigma_arcsec, klim=klim,
-        use_estimate=True
+        nx=nx,
+        ny=ny,
+        scale=scale,
+        sigma_arcsec=fpfs_config.sigma_arcsec,
+        klim=klim,
+        use_estimate=True,
     )
     bfunc_use, dtype = prepare_fpfs_bases(scale=scale, fpfs_config=fpfs_config)
 
@@ -104,14 +109,14 @@ def match_noise(
         filter_image=bfunc_use,
         psf_array=psf_array_w,
         det=detection_w,
-        do_rotate=False
+        do_rotate=False,
     )
     dnu_deep_w = mtask.measure_source(
         gal_array=noise_array_d + noise_array_d90,
         filter_image=bfunc_use,
         psf_array=psf_array_d,
         det=detection_w,
-        do_rotate=False
+        do_rotate=False,
     )
     meas_wide = nu_wide + dnu_deep_w
     meas_wide = rfn.unstructured_to_structured(meas_wide, dtype=dtype)
@@ -122,25 +127,27 @@ def match_noise(
         filter_image=bfunc_use,
         psf_array=psf_array_d,
         det=detection_d,
-        do_rotate=False
-        )
+        do_rotate=False,
+    )
     dnu_deep_d = mtask.measure_source(
         gal_array=noise_array_d90,
         filter_image=bfunc_use,
         psf_array=psf_array_d,
         det=detection_d,
-        do_rotate=False
+        do_rotate=False,
     )
     dnu_wide_d = mtask.measure_source(
         gal_array=noise_array_w,
         filter_image=bfunc_use,
         psf_array=psf_array_w,
         det=detection_d,
-        do_rotate=False
+        do_rotate=False,
     )
     meas_deep = nu_deep + dnu_deep_d + dnu_wide_d
     meas_deep = rfn.unstructured_to_structured(meas_deep, dtype=dtype)
-    meas_deep_n = rfn.unstructured_to_structured(dnu_deep_d + 0.5*dnu_wide_d, dtype=dtype)
+    meas_deep_n = rfn.unstructured_to_structured(
+        dnu_deep_d + 0.5 * dnu_wide_d, dtype=dtype
+    )
     src_deep = {"data": meas_deep, "noise": meas_deep_n}
     return src_wide, src_deep
 
@@ -197,7 +204,7 @@ def run_deep_anacal(
 ):
     ftask_w = create_fpfs_task(fpfs_config, scale, 0.5 * noise_var_w, psf_array_w)
     ftask_d = create_fpfs_task(fpfs_config, scale, noise_var_d, psf_array_d)
-    std_m00 = np.sqrt(ftask_w.std_m00 ** 2 + ftask_d.std_m00 ** 2)
+    std_m00 = np.sqrt(ftask_w.std_m00**2 + ftask_d.std_m00**2)
     fpfs_config.c0 = 4.0 * std_m00
     src_wide, src_deep = match_noise(
         scale=scale,

@@ -32,7 +32,7 @@ def build_variable_psf(
     if psf_name not in ["gaussian", "moffat"]:
         raise ValueError(f"{psf_name} is not supported")
     rng = np.random.RandomState(seed)
-    fwhm = rng.uniform(low=fwhm-0.1, high=fwhm+0.1)
+    fwhm = rng.uniform(low=fwhm - 0.1, high=fwhm + 0.1)
     psf_g1 = rng.uniform(low=-0.02, high=0.02)
     psf_g2 = rng.uniform(low=-0.02, high=0.02)
     if psf_name == "gaussian":
@@ -241,7 +241,7 @@ def simulate_noise(
 ):
     # Noise properties
     if gal_type == "exp":
-        if "noise_std_w" in kwargs: 
+        if "noise_std_w" in kwargs:
             noise_std_w = kwargs["noise_std_w"]
         else:
             signal = kwargs.get("signal", 1e8)

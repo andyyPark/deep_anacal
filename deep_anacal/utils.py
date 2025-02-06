@@ -78,7 +78,7 @@ def apply_sel(*, acat, sel, sel_min):
             sel = [sel]
             sel_min = [sel_min]
         mask = np.ones_like(acat, dtype=bool)
-        for (s, s_min) in zip(sel, sel_min):
+        for s, s_min in zip(sel, sel_min):
             mask &= acat[s] > s_min
         cat = acat[mask]
     return cat
