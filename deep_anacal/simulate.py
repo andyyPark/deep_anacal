@@ -1,6 +1,7 @@
 import galsim
 import numpy as np
 from .utils import setup_custom_logger, cached_descwl_catalog_read
+import anacal
 
 import descwl
 
@@ -227,6 +228,96 @@ def simulate_wide_deep(
         "psf_w": psf_array_w,
         "gal_d": gal_array_d,
         "psf_d": psf_array_d,
+    }
+
+def simulate_wide_deep_isolated(
+    seed,
+    ngrid=64,
+    nstamp=100,
+    scale=0.2,
+    gal_type="mixed",
+    fwhm_w=0.9,
+    fwhm_d=0.7,
+    fix_psf=True,
+):
+    if fix_psf:
+        psf_w = galsim.Moffat(beta=2.5, fwhm=fwhm_w, trunc=0.6 * 4.0)
+        psf_d = galsim.Moffat(beta=2.5, fwhm=fwhm_d, trunc=0.6 * 4.0)
+    else:
+        rng = np.random.RandomState(seed=seed)
+        fwhm_w = rng.uniform(low=fwhm_w - 0.1, high=fwhm_w + 0.1)
+        fwhm_d = rng.uniform(low=fwhm_d - 0.1, high=fwhm_d + 0.1)
+        psf_g1 = rng.uniform(low=-0.02, high=0.02)
+        psf_g2 = rng.uniform(low=-0.02, high=0.02)
+        psf_w = galsim.Moffat(beta=2.5, fwhm=fwhm_w, trunc=0.6 * 4.0).shear(g1=psf_g1, g2=psf_g2)
+        psf_d = galsim.Moffat(beta=2.5, fwhm=fwhm_d, trunc=0.6 * 4.0).shear(g1=psf_g1, g2=psf_g2)
+    gal_wp = anacal.simulation.make_isolated_sim(
+        seed=seed,
+        scale=scale,
+        psf_obj=psf_w,
+        ngrid=ngrid,
+        ny=nstamp*ngrid,
+        nx=nstamp*ngrid,
+        gname="g1-1",
+        gal_type=gal_type,
+        sim_method="fft",
+        buff=0,
+        do_shift=False,
+        mag_zero=30.0
+    )[0]
+    gal_wm = anacal.simulation.make_isolated_sim(
+        seed=seed,
+        scale=scale,
+        psf_obj=psf_w,
+        ngrid=ngrid,
+        ny=nstamp*ngrid,
+        nx=nstamp*ngrid,
+        gname="g1-0",
+        gal_type=gal_type,
+        sim_method="fft",
+        buff=0,
+        do_shift=False,
+        mag_zero=30.0
+    )[0]
+    if fwhm_w == fwhm_d:
+        gal_dp = gal_wp
+        gal_dm = gal_wm
+    else:
+        gal_dp = anacal.simulation.make_isolated_sim(
+            seed=seed,
+            scale=scale,
+            psf_obj=psf_d,
+            ngrid=ngrid,
+            ny=nstamp*ngrid,
+            nx=nstamp*ngrid,
+            gname="g1-1",
+            gal_type=gal_type,
+            sim_method="fft",
+            buff=0,
+            do_shift=False,
+            mag_zero=30.0
+        )[0]
+        gal_dm = anacal.simulation.make_isolated_sim(
+            seed=seed,
+            scale=scale,
+            psf_obj=psf_d,
+            ngrid=ngrid,
+            ny=nstamp*ngrid,
+            nx=nstamp*ngrid,
+            gname="g1-0",
+            gal_type=gal_type,
+            sim_method="fft",
+            buff=0,
+            do_shift=False,
+            mag_zero=30.0
+        )[0]
+    return {
+        "gal_wp": gal_wp,
+        "gal_wm": gal_wm,
+        "psf_w": psf_w,
+        "gal_dp": gal_dp,
+        "gal_dm": gal_dm,
+        "psf_d": psf_d,
     }
 
 
